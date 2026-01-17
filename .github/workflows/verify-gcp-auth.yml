@@ -1,0 +1,24 @@
+name: Verify GCP Auth
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  verify-auth:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: 'projects/112562671215/locations/global/workloadIdentityPools/github-pool2/providers/github-provider'
+          service_account: 'drawing-agent@omega-chimera-484611-r6.iam.gserviceaccount.com'
+
+      - name: 'Verify Login'
+        run: gcloud auth list

@@ -1,0 +1,9 @@
+# Temporary files
+tmp/
+.DS_Store
+*.log
+__pycache__/
+.venv/
+.env
+.idea/
+.vscode/
