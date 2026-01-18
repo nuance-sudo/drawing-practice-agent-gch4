@@ -4,6 +4,7 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.api.reviews import router as reviews_router
 from src.config import settings
 
 # structlog設定
@@ -42,6 +43,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# APIルーター登録
+app.include_router(reviews_router)
 
 
 @app.get("/")

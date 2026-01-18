@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # GCP設定
     gcp_project_id: str = ""
-    gcp_region: str = "asia-northeast1"
+    gcp_region: str = "global"
 
     # Firestore設定
     firestore_database: str = "(default)"
@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     cdn_base_url: str = ""
 
     # Gemini設定
-    gemini_model: str = "gemini-3-flash-preview"
+    gemini_model: str = "gemini-2.5-flash"
     gemini_image_model: str = "gemini-2.5-flash-image"
     gemini_max_output_tokens: int = 32000
     gemini_temperature: float = 1.0
