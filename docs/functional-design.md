@@ -157,40 +157,46 @@ flowchart TB
 
 **技術スタック**:
 - React 19.x
-- Vite 7.x
+- Next.js 16.x (App Router)
 - TypeScript 5.x
 - Tailwind CSS 4.x
+- Auth.js 5.x（GitHub OAuth認証）
 - Zustand 5.x（状態管理）
 - SWR 2.x（データフェッチ・ポーリング）
-- vite-plugin-pwa（PWA対応）
 
 ```
-webapp/
-├── src/
-│   ├── components/       # UIコンポーネント
-│   │   ├── ImageUpload.tsx
-│   │   ├── FeedbackDisplay.tsx
-│   │   ├── TaskList.tsx
-│   │   └── RankBadge.tsx
-│   ├── pages/            # ページコンポーネント
-│   │   ├── Home.tsx
-│   │   ├── Review.tsx
-│   │   └── History.tsx
-│   ├── stores/           # Zustandストア
-│   │   ├── authStore.ts
-│   │   └── taskStore.ts
-│   ├── hooks/            # カスタムフック
-│   │   ├── useReview.ts
-│   │   └── usePushNotification.ts
-│   ├── api/              # API呼び出し
-│   │   └── reviewApi.ts
-│   └── utils/
-│       └── pushNotification.ts
+packages/web/
+├── app/
+│   ├── api/
+│   │   └── auth/
+│   │       └── [...nextauth]/
+│   │           └── route.ts    # Auth.js設定
+│   ├── (authenticated)/        # 認証必須ページ
+│   │   ├── review/
+│   │   │   └── page.tsx
+│   │   ├── history/
+│   │   │   └── page.tsx
+│   │   └── layout.tsx
+│   ├── page.tsx                # ホーム（ログイン）
+│   └── layout.tsx              # ルートレイアウト
+├── components/                 # UIコンポーネント
+│   ├── ImageUpload.tsx
+│   ├── FeedbackDisplay.tsx
+│   ├── TaskList.tsx
+│   └── RankBadge.tsx
+├── stores/                     # Zustandストア
+│   └── taskStore.ts
+├── hooks/                      # カスタムフック
+│   ├── useReview.ts
+│   └── usePushNotification.ts
+├── lib/
+│   ├── auth.ts                 # Auth.js設定
+│   └── api.ts                  # API呼び出し
 ├── public/
-│   └── sw.js             # Service Worker
+│   └── sw.js                   # Service Worker
 ├── package.json
-├── vite.config.ts
-└── tailwind.config.js
+├── next.config.ts
+└── tailwind.config.ts
 ```
 
 ### 2. API Server（Cloud Run）

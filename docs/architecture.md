@@ -6,13 +6,12 @@
 
 | カテゴリ | 技術 | バージョン | 用途 |
 |----------|------|------------|------|
-| フレームワーク | React | 19.x | UIライブラリ |
-| ビルドツール | Vite | 7.x | 開発サーバー・バンドラー |
+| フレームワーク | Next.js | 16.x | React フレームワーク（App Router）|
 | 言語 | TypeScript | 5.x | 型安全 |
 | スタイリング | Tailwind CSS | 4.x | ユーティリティCSS |
+| 認証 | Auth.js | 5.x | GitHub OAuth認証 |
 | 状態管理 | Zustand | 5.x | グローバルステート |
 | データフェッチ | SWR | 2.x | キャッシュ・ポーリング |
-| PWA | vite-plugin-pwa | latest | Service Worker |
 | ホスティング | Vercel | - | 自動デプロイ |
 
 > **参考**: [aws-samples/generative-ai-use-cases](https://github.com/aws-samples/generative-ai-use-cases)
@@ -222,8 +221,12 @@ flowchart TB
         A[ブラウザ]
     end
 
+    subgraph GitHub["GitHub"]
+        H[GitHub OAuth]
+    end
+
     subgraph Vercel["Vercel"]
-        B[ウェブアプリ]
+        B[Next.js + Auth.js]
     end
 
     subgraph GCP["Google Cloud"]
@@ -234,8 +237,12 @@ flowchart TB
         G[Cloud Run Agent]
     end
 
-    A -->|認証(将来)| B
-    B -->|API Call| C
+    A -->|1. ログイン| B
+    B -->|2. OAuth認証| H
+    H -->|3. アクセストークン| B
+    B -->|4. JWT生成| A
+    A -->|5. API Call + JWT| C
+    C -->|JWT検証| C
     C -->|サービスアカウント| E
     E -->|GetSecretValue| D
     F -->|トリガー| G
@@ -244,11 +251,11 @@ flowchart TB
 
 | 項目 | 実装 |
 |------|------|
-| ユーザー認証 | 将来実装（Firebase Auth等） |
-| API認証 | APIキー or JWT（将来） |
+| ユーザー認証 | Auth.js + GitHub OAuth |
+| API認証 | JWT（Auth.jsセッション）|
 | Eventarc → Cloud Run | サービスアカウント |
 | Vertex AI認証 | サービスアカウント（自動） |
-| GitHub認証 | GitHub App（オプション） |
+| GitHub認証 | GitHub OAuth（Auth.js）|
 
 ### データ保護
 
@@ -349,25 +356,26 @@ dev = [
 ]
 ```
 
-### Node.js パッケージ (webapp/)
+### Node.js パッケージ (packages/web/)
 
 ```json
 {
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "zustand": "^4.5.2",
+    "next": "^16.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "next-auth": "^5.0.0",
+    "zustand": "^5.0.0",
     "swr": "^2.3.0",
     "tailwind-merge": "^2.4.0"
   },
   "devDependencies": {
-    "vite": "^6.4.1",
     "typescript": "^5.4.5",
-    "tailwindcss": "^3.4.3",
-    "@vitejs/plugin-react": "^4.2.0",
-    "vite-plugin-pwa": "^0.21.1",
-    "vitest": "^3.0.7",
-    "eslint": "^8.57.0"
+    "tailwindcss": "^4.0.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^16.0.0"
   }
 }
 ```
@@ -388,12 +396,15 @@ dev = [
 | `VAPID_PRIVATE_KEY_SECRET_ID` | 秘密鍵のSecret ID | 環境 |
 | `GITHUB_APP_SECRET_ID` | GitHub App秘密鍵（オプション） | 環境 |
 
-### フロントエンド
+### フロントエンド（Vercel）
 
 | 変数名 | 説明 |
 |--------|------|
-| `VITE_API_BASE_URL` | APIサーバーのURL |
-| `VITE_VAPID_PUBLIC_KEY` | Web Push用公開鍵 |
+| `NEXT_PUBLIC_API_BASE_URL` | APIサーバーのURL |
+| `AUTH_SECRET` | Auth.js セッション暗号化キー |
+| `AUTH_GITHUB_ID` | GitHub OAuth Client ID |
+| `AUTH_GITHUB_SECRET` | GitHub OAuth Client Secret |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Web Push用公開鍵（オプション）|
 
 ---
 
