@@ -22,10 +22,18 @@
 | カテゴリ | 技術 | バージョン | 用途 |
 |----------|------|------------|------|
 | 言語 | Python | 3.12+ | エージェント・API実装 |
-| Webフレームワーク | FastAPI | 0.115+ | REST API |
-| AIフレームワーク | Google ADK | latest | エージェント構築 |
+| Webフレームワーク | FastAPI | 0.128+ | REST API |
+| AIフレームワーク | Google ADK | 1.18+ | エージェント構築 |
+| AI Platform | google-cloud-aiplatform | 1.133+ | Vertex AI連携 |
+| データベース | google-cloud-firestore | 2.23+ | Firestore連携 |
+| ストレージ | google-cloud-storage | 3.8+ | Cloud Storage連携 |
+| バリデーション | Pydantic | 2.12+ | データモデル・設定 |
+| ログ | structlog | 25.5+ | 構造化ログ |
+| リトライ | tenacity | 9.0+ | リトライ処理 |
 | ホスティング | Cloud Run | - | サーバーレス実行 |
 | コンテナ | Docker | 24+ | パッケージング |
+
+> **Note**: バージョンは2026年1月時点の最新版です。`/check-package-versions` スキルで最新バージョンを確認できます。
 
 ### AI/ML サービス
 

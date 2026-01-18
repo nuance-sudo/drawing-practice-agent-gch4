@@ -300,6 +300,7 @@ graph TD
 
 | スキル名 | 説明 | 呼び出し方 |
 |----------|------|-----------|
+| `check-package-versions` | Pythonパッケージの最新バージョン確認・更新 | `/check-package-versions` |
 | `pre-deploy-check` | デプロイ前のテスト・構文チェック・リント・型チェック | `/pre-deploy-check` |
 | `code-quality` | コーディング規約・命名規則・スタイリングの確認 | `/code-quality` |
 | `git-commit` | コミット・プッシュ・ブランチ作成・PR作成 | `/git-commit` |
@@ -308,6 +309,8 @@ graph TD
 
 ```
 .agent/skills/
+├── check-package-versions/
+│   └── SKILL.md
 ├── pre-deploy-check/
 │   └── SKILL.md
 ├── code-quality/
