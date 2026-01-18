@@ -6,6 +6,7 @@ ADKエージェントが使用するツール関数を定義。
 import structlog
 from google import genai
 from google.genai import types
+from pydantic import ValidationError
 
 from src.config import settings
 from src.models.feedback import DessinAnalysis
@@ -13,6 +14,7 @@ from src.prompts.coaching import (
     DESSIN_ANALYSIS_SYSTEM_PROMPT,
     DESSIN_ANALYSIS_USER_PROMPT,
 )
+from src.utils.validation import sanitize_for_storage, validate_image_url
 
 logger = structlog.get_logger()
 
@@ -40,9 +42,12 @@ def analyze_dessin_image(image_url: str) -> dict[str, object]:
         >>> print(result["analysis"]["overall_score"])
         75.5
     """
-    logger.info("analyze_dessin_image_started", image_url=image_url)
+    logger.info("analyze_dessin_image_started", image_url=image_url[:100])
 
     try:
+        # URL検証（SSRF対策）
+        validated_url = validate_image_url(image_url)
+
         # Gemini クライアント初期化
         client = genai.Client(
             vertexai=True,
@@ -52,7 +57,7 @@ def analyze_dessin_image(image_url: str) -> dict[str, object]:
 
         # 画像をURLから取得してPart作成
         image_part = types.Part.from_uri(
-            file_uri=image_url,
+            file_uri=validated_url,
             mime_type="image/jpeg",
         )
 
@@ -77,8 +82,11 @@ def analyze_dessin_image(image_url: str) -> dict[str, object]:
             ),
         )
 
-        # レスポンスをパース
+        # レスポンスをパース（Pydanticで構造検証）
         analysis = DessinAnalysis.model_validate_json(response.text)
+
+        # スコア範囲の追加検証
+        analysis = _validate_and_sanitize_analysis(analysis)
 
         # 要約を作成
         summary = _create_summary(analysis)
@@ -95,12 +103,42 @@ def analyze_dessin_image(image_url: str) -> dict[str, object]:
             "summary": summary,
         }
 
-    except Exception as e:
-        logger.error("analyze_dessin_image_failed", error=str(e), image_url=image_url)
+    except ValidationError as e:
+        logger.error("analysis_validation_failed", error=str(e))
         return {
             "status": "error",
-            "error_message": f"デッサン分析に失敗しました: {e}",
+            "error_message": "分析結果の検証に失敗しました",
         }
+    except Exception as e:
+        logger.error("analyze_dessin_image_failed", error=str(e))
+        return {
+            "status": "error",
+            "error_message": "デッサン分析に失敗しました",
+        }
+
+
+def _validate_and_sanitize_analysis(analysis: DessinAnalysis) -> DessinAnalysis:
+    """分析結果を検証しサニタイズ
+
+    Args:
+        analysis: 分析結果
+
+    Returns:
+        検証・サニタイズ済みの分析結果
+    """
+    # スコアを0-100の範囲にクランプ
+    analysis.overall_score = max(0.0, min(100.0, analysis.overall_score))
+    analysis.proportion.score = max(0.0, min(100.0, analysis.proportion.score))
+    analysis.tone.score = max(0.0, min(100.0, analysis.tone.score))
+    analysis.texture.score = max(0.0, min(100.0, analysis.texture.score))
+    analysis.line_quality.score = max(0.0, min(100.0, analysis.line_quality.score))
+
+    # テキストフィールドをサニタイズ
+    analysis.strengths = [sanitize_for_storage(s, 500) for s in analysis.strengths[:10]]
+    analysis.improvements = [sanitize_for_storage(i, 500) for i in analysis.improvements[:10]]
+    analysis.tags = [sanitize_for_storage(t, 50) for t in analysis.tags[:20]]
+
+    return analysis
 
 
 def _create_summary(analysis: DessinAnalysis) -> str:
