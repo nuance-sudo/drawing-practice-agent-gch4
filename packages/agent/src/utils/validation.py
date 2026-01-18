@@ -95,14 +95,11 @@ def validate_image_url(url: str) -> str:
             allowed_buckets.append(settings.gcs_bucket_name)
 
         if not allowed_buckets:
-            # 許可リストが空の場合は警告ログを出して許可（開発時の利便性）
-            import structlog
-
-            structlog.get_logger().warning(
-                "gcs_bucket_allowlist_empty",
-                message="GCSバケット許可リストが空です。本番環境では設定してください。",
+            # 許可リストが空の場合はエラー（本番環境では必須）
+            raise ImageProcessingError(
+                "GCSバケット許可リストが設定されていません。"
+                "GCS_BUCKET_NAME環境変数を設定してください。"
             )
-            return normalized_url
 
         if bucket_name not in allowed_buckets:
             raise ImageProcessingError(f"許可されていないGCSバケットです: {bucket_name}")
