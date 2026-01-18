@@ -5,26 +5,34 @@ SSRF対策のためのURL検証機能を提供。
 
 import ipaddress
 import re
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from src.config import settings
 from src.exceptions import ImageProcessingError
 
-# 許可するCloud Storageバケットパターン
-ALLOWED_GCS_PATTERNS = [
-    r"^https://storage\.googleapis\.com/.+$",
-    r"^https://storage\.cloud\.google\.com/.+$",
-    r"^gs://.+$",
+# 許可するホスト名（完全一致）
+ALLOWED_HOSTNAMES = [
+    "storage.googleapis.com",
+    "storage.cloud.google.com",
 ]
 
 # 禁止するIPレンジ（プライベートIP、メタデータエンドポイント等）
-BLOCKED_IP_RANGES = [
+BLOCKED_IP_RANGES_V4 = [
     ipaddress.ip_network("10.0.0.0/8"),
     ipaddress.ip_network("172.16.0.0/12"),
     ipaddress.ip_network("192.168.0.0/16"),
     ipaddress.ip_network("127.0.0.0/8"),
     ipaddress.ip_network("169.254.0.0/16"),  # メタデータエンドポイント
     ipaddress.ip_network("0.0.0.0/8"),
+]
+
+# IPv6ブロックリスト
+BLOCKED_IP_RANGES_V6 = [
+    ipaddress.ip_network("::1/128"),  # Localhost
+    ipaddress.ip_network("fe80::/10"),  # Link-local
+    ipaddress.ip_network("::ffff:0:0/96"),  # IPv4-mapped
+    ipaddress.ip_network("fc00::/7"),  # Unique local
+    ipaddress.ip_network("ff00::/8"),  # Multicast
 ]
 
 
@@ -43,43 +51,52 @@ def validate_image_url(url: str) -> str:
     if not url:
         raise ImageProcessingError("画像URLが空です")
 
+    # URLデコードして正規化
+    normalized_url = unquote(url)
+
     # スキームを確認
-    parsed = urlparse(url)
+    parsed = urlparse(normalized_url)
     if parsed.scheme not in ("https", "gs"):
         raise ImageProcessingError(f"許可されていないスキームです: {parsed.scheme}")
 
-    # ホスト名からIPアドレスを解決してブロックリストを確認
     hostname = parsed.hostname
-    if hostname:
-        # IPアドレス形式の場合は直接チェック
-        try:
-            ip = ipaddress.ip_address(hostname)
-            for blocked_range in BLOCKED_IP_RANGES:
-                if ip in blocked_range:
-                    raise ImageProcessingError(
-                        f"プライベートIPへのアクセスは許可されていません: {hostname}"
-                    )
-        except ValueError:
-            # ホスト名の場合はパターンマッチ
-            pass
+    if not hostname:
+        raise ImageProcessingError("ホスト名が取得できません")
 
-    # Cloud Storage URLパターンを検証
-    is_allowed = False
-    for pattern in ALLOWED_GCS_PATTERNS:
-        if re.match(pattern, url):
+    # IPアドレス形式の場合はブロックリストを確認
+    try:
+        ip = ipaddress.ip_address(hostname)
+        blocked_ranges = BLOCKED_IP_RANGES_V6 if ip.version == 6 else BLOCKED_IP_RANGES_V4
+        for blocked_range in blocked_ranges:
+            if ip in blocked_range:
+                raise ImageProcessingError(
+                    f"プライベートIPへのアクセスは許可されていません: {hostname}"
+                )
+        # IPアドレス直接指定は許可しない
+        raise ImageProcessingError("IPアドレス直接指定は許可されていません")
+    except ValueError:
+        # ホスト名の場合は完全一致で検証
+        pass
+
+    # gs:// スキームの場合は許可
+    if parsed.scheme == "gs":
+        return normalized_url
+
+    # ホスト名の完全一致を確認
+    is_allowed = hostname in ALLOWED_HOSTNAMES
+
+    # 設定されたCDN URLのホスト名も許可
+    if settings.cdn_base_url:
+        cdn_parsed = urlparse(settings.cdn_base_url)
+        if cdn_parsed.hostname and hostname == cdn_parsed.hostname:
             is_allowed = True
-            break
-
-    # 設定されたCDN URLも許可
-    if settings.cdn_base_url and url.startswith(settings.cdn_base_url):
-        is_allowed = True
 
     if not is_allowed:
         raise ImageProcessingError(
-            f"許可されていないURLです。Cloud StorageまたはCDN URLのみ使用可能です: {url}"
+            f"許可されていないホストです: {hostname}。Cloud StorageまたはCDN URLのみ使用可能です"
         )
 
-    return url
+    return normalized_url
 
 
 def sanitize_for_storage(text: str, max_length: int = 10000) -> str:

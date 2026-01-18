@@ -1,16 +1,15 @@
 """タスクモデル定義"""
 
-import re
 from datetime import datetime
 from enum import Enum
+from urllib.parse import unquote, urlparse
 
 from pydantic import BaseModel, Field, field_validator
 
-# 許可するCloud Storageバケットパターン
-_ALLOWED_URL_PATTERNS = [
-    r"^https://storage\.googleapis\.com/.+$",
-    r"^https://storage\.cloud\.google\.com/.+$",
-    r"^gs://.+$",
+# 許可するホスト名（完全一致）
+_ALLOWED_HOSTNAMES = [
+    "storage.googleapis.com",
+    "storage.cloud.google.com",
 ]
 
 
@@ -48,16 +47,31 @@ class ReviewTask(BaseModel):
     @field_validator("image_url", "example_image_url", mode="before")
     @classmethod
     def validate_url(cls, v: str | None) -> str | None:
-        """URLがCloud Storage/CDNパターンに一致するか検証"""
+        """URLのホスト名が許可リストに含まれるか検証（完全一致）"""
         if v is None:
             return None
 
-        # 許可されたパターンかチェック
-        for pattern in _ALLOWED_URL_PATTERNS:
-            if re.match(pattern, v):
-                return v
+        # URLデコードして正規化
+        normalized = unquote(v)
+        parsed = urlparse(normalized)
 
-        raise ValueError("許可されていないURLです。Cloud StorageまたはCDN URLのみ使用可能です")
+        # gs:// スキームは許可
+        if parsed.scheme == "gs":
+            return normalized
+
+        # httpsのみ許可
+        if parsed.scheme != "https":
+            raise ValueError(f"HTTPSのみ許可されています: {parsed.scheme}")
+
+        # ホスト名の完全一致を確認
+        hostname = parsed.hostname
+        if hostname not in _ALLOWED_HOSTNAMES:
+            raise ValueError(
+                f"許可されていないホストです: {hostname}。"
+                "Cloud StorageまたはCDN URLのみ使用可能です"
+            )
+
+        return normalized
 
     class Config:
         use_enum_values = True
