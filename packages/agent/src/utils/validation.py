@@ -16,6 +16,13 @@ ALLOWED_HOSTNAMES = [
     "storage.cloud.google.com",
 ]
 
+# 許可するGCSバケット名（gs://スキーム用）
+# 設定から読み込むか、ここでハードコード
+ALLOWED_GCS_BUCKETS = [
+    # プロジェクト固有のバケット名をここに追加
+    # 例: "my-project-images"
+]
+
 # 禁止するIPレンジ（プライベートIP、メタデータエンドポイント等）
 BLOCKED_IP_RANGES_V4 = [
     ipaddress.ip_network("10.0.0.0/8"),
@@ -78,8 +85,27 @@ def validate_image_url(url: str) -> str:
         # ホスト名の場合は完全一致で検証
         pass
 
-    # gs:// スキームの場合は許可
+    # gs:// スキームの場合はバケット名を検証
     if parsed.scheme == "gs":
+        bucket_name = parsed.netloc  # gs://bucket-name/path → bucket-name
+
+        # 設定からバケット許可リストを取得
+        allowed_buckets = ALLOWED_GCS_BUCKETS.copy()
+        if settings.gcs_bucket_name:
+            allowed_buckets.append(settings.gcs_bucket_name)
+
+        if not allowed_buckets:
+            # 許可リストが空の場合は警告ログを出して許可（開発時の利便性）
+            import structlog
+
+            structlog.get_logger().warning(
+                "gcs_bucket_allowlist_empty",
+                message="GCSバケット許可リストが空です。本番環境では設定してください。",
+            )
+            return normalized_url
+
+        if bucket_name not in allowed_buckets:
+            raise ImageProcessingError(f"許可されていないGCSバケットです: {bucket_name}")
         return normalized_url
 
     # ホスト名の完全一致を確認

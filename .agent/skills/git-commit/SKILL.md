@@ -131,9 +131,89 @@ mcp_github-mcp-server_issue_write(
 )
 ```
 
-### 7. PRマージ
+### 7. PRレビュー対応（レビュー指摘があった場合）
 
-レビュー後、PRをマージ：
+#### 7.1 レビューコメントの確認
+
+```python
+# レビューサマリーを取得
+mcp_github-mcp-server_pull_request_read(
+    method="get_reviews",
+    owner="nuance-sudo",
+    repo="drawing-practice-agent-gch4",
+    pullNumber=XX
+)
+
+# 詳細なレビューコメントを取得
+mcp_github-mcp-server_pull_request_read(
+    method="get_review_comments",
+    owner="nuance-sudo",
+    repo="drawing-practice-agent-gch4",
+    pullNumber=XX
+)
+```
+
+#### 7.2 指摘のトリアージ（難易度・重要度の整理）
+
+> ⚠️ **すべてのレビュー指摘に対応する必要はない**
+> 
+> PoCの範囲を超える指摘は無視してマージしてOK。
+> **マージの判断はユーザーが行う**ため、難易度と重要度を説明する。
+
+レビュー指摘を以下のフォーマットで整理して報告する：
+
+```markdown
+## レビュー指摘事項
+
+| 問題 | 難易度 | 対応 |
+|------|--------|------|
+| **[問題1]** | 🟢 簡単 | ✅ 対応（〜分）|
+| **[問題2]** | 🟡 中程度 | ✅ 対応（〜分）|
+| **[問題3]** | 🔴 複雑 | ⏭️ PoCでは見送り |
+
+### 対応判断の基準
+
+| 難易度 | 目安 | 対応方針 |
+|--------|------|----------|
+| 🟢 簡単 | 5分以内 | 即時対応推奨 |
+| 🟡 中程度 | 10-30分 | ユーザー判断 |
+| 🔴 複雑 | 1時間以上 / 設計変更必要 | PoC見送り推奨 |
+
+簡単な修正だけ対応しますか？それともPoCとして現状のままマージしますか？
+```
+
+#### 7.3 修正とプッシュ
+
+```bash
+# 修正を実施
+# ...
+
+# コミット（修正内容を明記）
+git add .
+git commit -m "fix: レビュー指摘対応
+
+- [指摘1への対応]
+- [指摘2への対応]"
+
+# 同じブランチにプッシュ → PRが自動更新される
+git push origin [ブランチ名]
+```
+
+#### 7.4 レビュワーに通知
+
+```python
+# PRにコメントを追加
+mcp_github-mcp-server_add_issue_comment(
+    owner="nuance-sudo",
+    repo="drawing-practice-agent-gch4",
+    issue_number=XX,  # PRの番号
+    body="レビュー指摘に対応しました。再レビューをお願いします。\n\n## 対応内容\n- [対応1]\n- [対応2]"
+)
+```
+
+### 8. PRマージ
+
+レビュー承認後、PRをマージ：
 
 ```python
 mcp_github-mcp-server_merge_pull_request(
@@ -146,7 +226,7 @@ mcp_github-mcp-server_merge_pull_request(
 )
 ```
 
-### 8. Issueクローズ
+### 9. Issueクローズ
 
 マージ後、関連Issueをクローズ：
 
@@ -161,7 +241,7 @@ mcp_github-mcp-server_issue_write(
 )
 ```
 
-### 9. 次のブランチ作成
+### 10. 次のブランチ作成
 
 マージ後、mainを更新して次のブランチを作成：
 
@@ -214,6 +294,12 @@ git checkout -b feature/step2-gemini-analysis
 PR作成後：
 - [ ] 関連Issueのタスクを更新した
 - [ ] PRの説明に変更内容を記載した
+
+レビュー対応後：
+- [ ] レビューコメントをすべて確認した
+- [ ] 修正が必要な箇所を対応した
+- [ ] 同じブランチにプッシュしてPRを更新した
+- [ ] レビュワーに再レビューを依頼した（必要な場合）
 
 マージ後：
 - [ ] 関連Issueをクローズした

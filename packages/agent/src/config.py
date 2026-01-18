@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     firestore_database: str = "(default)"
 
     # Cloud Storage設定
-    storage_bucket: str = ""
+    gcs_bucket_name: str = ""  # gs://スキームで許可するバケット名
     cdn_base_url: str = ""
 
     # Gemini設定

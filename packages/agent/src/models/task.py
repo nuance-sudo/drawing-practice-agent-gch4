@@ -55,8 +55,12 @@ class ReviewTask(BaseModel):
         normalized = unquote(v)
         parsed = urlparse(normalized)
 
-        # gs:// スキームは許可
+        # gs:// スキームはバケット名を検証
         if parsed.scheme == "gs":
+            # DetailedバリデーションはvalidationモジュールでI行うため、ここでは基本チェックのみ
+            bucket_name = parsed.netloc
+            if not bucket_name:
+                raise ValueError("GCSバケット名が指定されていません")
             return normalized
 
         # httpsのみ許可
