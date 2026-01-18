@@ -261,7 +261,9 @@ class TestReviewTaskService:
 
 ### 9. セキュリティ
 
-**概要**: 機密情報の取り扱いに注意
+**概要**: 機密情報の取り扱いと入力検証に注意
+
+#### 9.1 機密情報の管理
 
 ```python
 # ✅ 良い例 - Secret Managerから取得
@@ -275,3 +277,78 @@ api_key = "sk-1234567890abcdef"
 # ❌ 悪い例 - ログに機密情報
 logger.info("API call", api_key=api_key)  # 絶対にNG
 ```
+
+#### 9.2 入力サニタイズ（SSRF対策）
+
+**フロントエンドからエージェントに依頼する際は、必ず入力をサニタイズする**
+
+```python
+from src.utils.validation import validate_image_url, sanitize_for_storage
+
+# ✅ 良い例 - URL検証（SSRF対策）
+def handle_review_request(image_url: str) -> dict:
+    # Cloud Storage/CDN URLのみ許可
+    validated_url = validate_image_url(image_url)
+    return analyze_dessin(validated_url)
+
+# ✅ 良い例 - テキストサニタイズ（XSS対策）
+def save_feedback(feedback: str) -> None:
+    sanitized = sanitize_for_storage(feedback, max_length=10000)
+    # DBに保存
+
+# ❌ 悪い例 - 検証なしでURLを使用
+def bad_example(url: str):
+    # 任意のURLにアクセスできてしまう（SSRF脆弱性）
+    response = httpx.get(url)
+```
+
+#### 9.3 ブロックすべきURL
+
+| パターン | 理由 |
+|----------|------|
+| `169.254.169.254` | GCPメタデータエンドポイント |
+| `10.0.0.0/8` | プライベートネットワーク |
+| `172.16.0.0/12` | プライベートネットワーク |
+| `192.168.0.0/16` | プライベートネットワーク |
+| `127.0.0.0/8` | ローカルホスト |
+| `http://` | 暗号化なし（HTTPSのみ許可）|
+
+#### 9.4 AI出力の検証
+
+AIからの出力は信頼せず、必ず検証・サニタイズする。
+
+```python
+from pydantic import ValidationError
+
+# ✅ 良い例 - Pydanticで構造検証
+try:
+    analysis = DessinAnalysis.model_validate_json(response.text)
+    # スコアを0-100にクランプ
+    analysis.overall_score = max(0.0, min(100.0, analysis.overall_score))
+except ValidationError:
+    return {"status": "error", "message": "分析結果の検証に失敗"}
+
+# ❌ 悪い例 - 検証なしでAI出力を使用
+result = json.loads(response.text)  # 構造が不正な可能性
+score = result["score"]  # 範囲外の値の可能性
+```
+
+#### 9.5 Pydanticバリデーター
+
+モデルレベルで入力検証を行う。
+
+```python
+from pydantic import BaseModel, Field, field_validator
+
+class ReviewTask(BaseModel):
+    image_url: str = Field(..., description="画像URL")
+    
+    @field_validator("image_url", mode="before")
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        """Cloud Storage/CDN URLのみ許可"""
+        if not re.match(r"^https://storage\.googleapis\.com/.+$", v):
+            raise ValueError("許可されていないURL")
+        return v
+```
+

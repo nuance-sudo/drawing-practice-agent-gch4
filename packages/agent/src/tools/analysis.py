@@ -1,0 +1,165 @@
+"""デッサン分析ツール
+
+ADKエージェントが使用するツール関数を定義。
+"""
+
+import structlog
+from google import genai
+from google.genai import types
+from pydantic import ValidationError
+
+from src.config import settings
+from src.models.feedback import DessinAnalysis
+from src.prompts.coaching import (
+    DESSIN_ANALYSIS_SYSTEM_PROMPT,
+    DESSIN_ANALYSIS_USER_PROMPT,
+)
+from src.utils.validation import sanitize_for_storage, validate_image_url
+
+logger = structlog.get_logger()
+
+
+def analyze_dessin_image(image_url: str) -> dict[str, object]:
+    """デッサン画像を分析し、フィードバックを返す
+
+    鉛筆デッサン画像を分析し、プロポーション、陰影、質感、線の質の観点から
+    評価とフィードバックを生成します。
+
+    Args:
+        image_url: 分析対象の画像URL（Cloud StorageまたはCloud CDN経由）
+
+    Returns:
+        分析結果を含む辞書。以下のキーを含む:
+        - status: "success" または "error"
+        - analysis: 分析結果（DessinAnalysis形式）
+        - summary: フィードバックの要約
+        - error_message: エラー時のメッセージ（エラー時のみ）
+
+    Example:
+        >>> result = analyze_dessin_image("https://storage.googleapis.com/.../drawing.jpg")
+        >>> print(result["status"])
+        "success"
+        >>> print(result["analysis"]["overall_score"])
+        75.5
+    """
+    logger.info("analyze_dessin_image_started", image_url=image_url[:100])
+
+    try:
+        # URL検証（SSRF対策）
+        validated_url = validate_image_url(image_url)
+
+        # Gemini クライアント初期化
+        client = genai.Client(
+            vertexai=True,
+            project=settings.gcp_project_id,
+            location=settings.gcp_region,
+        )
+
+        # 画像をURLから取得してPart作成
+        image_part = types.Part.from_uri(
+            file_uri=validated_url,
+            mime_type="image/jpeg",
+        )
+
+        # 分析リクエスト
+        response = client.models.generate_content(
+            model=settings.gemini_model,
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_text(text=DESSIN_ANALYSIS_USER_PROMPT),
+                        image_part,
+                    ],
+                ),
+            ],
+            config=types.GenerateContentConfig(
+                system_instruction=DESSIN_ANALYSIS_SYSTEM_PROMPT,
+                max_output_tokens=settings.gemini_max_output_tokens,
+                temperature=settings.gemini_temperature,
+                response_mime_type="application/json",
+                response_schema=DessinAnalysis,
+            ),
+        )
+
+        # レスポンスをパース（Pydanticで構造検証）
+        analysis = DessinAnalysis.model_validate_json(response.text)
+
+        # スコア範囲の追加検証
+        analysis = _validate_and_sanitize_analysis(analysis)
+
+        # 要約を作成
+        summary = _create_summary(analysis)
+
+        logger.info(
+            "analyze_dessin_image_completed",
+            overall_score=analysis.overall_score,
+            tags=analysis.tags,
+        )
+
+        return {
+            "status": "success",
+            "analysis": analysis.model_dump(),
+            "summary": summary,
+        }
+
+    except ValidationError as e:
+        logger.error("analysis_validation_failed", error=str(e))
+        return {
+            "status": "error",
+            "error_message": "分析結果の検証に失敗しました",
+        }
+    except Exception as e:
+        logger.error("analyze_dessin_image_failed", error=str(e))
+        return {
+            "status": "error",
+            "error_message": "デッサン分析に失敗しました",
+        }
+
+
+def _validate_and_sanitize_analysis(analysis: DessinAnalysis) -> DessinAnalysis:
+    """分析結果を検証しサニタイズ
+
+    Args:
+        analysis: 分析結果
+
+    Returns:
+        検証・サニタイズ済みの分析結果
+    """
+    # スコアを0-100の範囲にクランプ
+    analysis.overall_score = max(0.0, min(100.0, analysis.overall_score))
+    analysis.proportion.score = max(0.0, min(100.0, analysis.proportion.score))
+    analysis.tone.score = max(0.0, min(100.0, analysis.tone.score))
+    analysis.texture.score = max(0.0, min(100.0, analysis.texture.score))
+    analysis.line_quality.score = max(0.0, min(100.0, analysis.line_quality.score))
+
+    # テキストフィールドをサニタイズ
+    analysis.strengths = [sanitize_for_storage(s, 500) for s in analysis.strengths[:10]]
+    analysis.improvements = [sanitize_for_storage(i, 500) for i in analysis.improvements[:10]]
+    analysis.tags = [sanitize_for_storage(t, 50) for t in analysis.tags[:20]]
+
+    return analysis
+
+
+def _create_summary(analysis: DessinAnalysis) -> str:
+    """分析結果から要約を作成
+
+    Args:
+        analysis: デッサン分析結果
+
+    Returns:
+        要約文字列
+    """
+    score = analysis.overall_score
+    strengths = analysis.strengths[:2] if analysis.strengths else []
+    improvements = analysis.improvements[:1] if analysis.improvements else []
+
+    summary_parts = [f"総合スコア: {score}/100点"]
+
+    if strengths:
+        summary_parts.append(f"良い点: {', '.join(strengths)}")
+
+    if improvements:
+        summary_parts.append(f"改善ポイント: {improvements[0]}")
+
+    return " | ".join(summary_parts)
