@@ -2,14 +2,30 @@
 
 ## テクノロジースタック
 
+### フロントエンド（ウェブアプリ）
+
+| カテゴリ | 技術 | バージョン | 用途 |
+|----------|------|------------|------|
+| フレームワーク | React | 19.x | UIライブラリ |
+| ビルドツール | Vite | 7.x | 開発サーバー・バンドラー |
+| 言語 | TypeScript | 5.x | 型安全 |
+| スタイリング | Tailwind CSS | 4.x | ユーティリティCSS |
+| 状態管理 | Zustand | 5.x | グローバルステート |
+| データフェッチ | SWR | 2.x | キャッシュ・ポーリング |
+| PWA | vite-plugin-pwa | latest | Service Worker |
+| ホスティング | Vercel | - | 自動デプロイ |
+
+> **参考**: [aws-samples/generative-ai-use-cases](https://github.com/aws-samples/generative-ai-use-cases)
+
 ### エージェント（バックエンド）
 
 | カテゴリ | 技術 | バージョン | 用途 |
 |----------|------|------------|------|
-| 言語 | Python | 3.12+ | エージェント実装 |
+| 言語 | Python | 3.12+ | エージェント・API実装 |
+| Webフレームワーク | FastAPI | 0.115+ | REST API |
 | AIフレームワーク | Google ADK | latest | エージェント構築 |
-| ホスティング | Cloud Run | - | サーバーレスエージェント実行 |
-| コンテナ | Docker | 24+ | エージェントパッケージング |
+| ホスティング | Cloud Run | - | サーバーレス実行 |
+| コンテナ | Docker | 24+ | パッケージング |
 
 ### AI/ML サービス
 
@@ -22,11 +38,12 @@
 
 | サービス | 用途 |
 |----------|------|
-| Cloud Run | エージェントホスティング（サーバーレス） |
-| Firestore | セッション管理、ユーザーランクデータの永続化 |
-| Vertex AI Memory Bank | 長期メモリ（ベクトル検索による過去のフィードバック検索） |
-| Secret Manager | GitHub App秘密鍵管理 |
-| Cloud Tasks | 非同期処理キュー（オプション） |
+| Cloud Run | API Server + Agentホスティング |
+| Cloud Storage | 画像ストレージ |
+| Cloud CDN | 画像配信（高速・グローバル） |
+| Eventarc | イベント駆動トリガー（即時実行） |
+| Firestore | タスク管理、ユーザーランク管理 |
+| Secret Manager | 秘密鍵管理 |
 | Artifact Registry | コンテナイメージレジストリ |
 | Cloud Logging | ログ出力 |
 | Cloud Monitoring | メトリクス・アラート |
@@ -35,9 +52,10 @@
 
 | サービス | 用途 |
 |----------|------|
-| GitHub API | PR情報取得、コメント投稿 |
-| GitHub Actions | エージェントトリガー |
-| GitHub App | 認証（秘密鍵ベース） |
+| Vercel | ウェブアプリホスティング |
+| GitHub API | PR連携（オプション） |
+| GitHub Actions | PRトリガー（オプション） |
+| GitHub App | 認証（オプション） |
 
 ---
 
@@ -49,6 +67,7 @@
 |--------|------|
 | VS Code / Cursor | IDE |
 | uv | Pythonパッケージ管理 |
+| pnpm | Node.jsパッケージ管理 |
 | Docker | ローカル開発・テスト |
 | gcloud CLI | GCPリソース操作 |
 
@@ -56,33 +75,43 @@
 
 ```mermaid
 flowchart LR
-    A[Push to main] --> B[GitHub Actions]
-    B --> C[Lint & Test]
-    C --> D[Build Docker Image]
-    D --> E[Push to Artifact Registry]
-    E --> F[Deploy to Cloud Run]
+    subgraph Frontend["フロントエンド"]
+        A1[Push to main] --> B1[Vercel]
+        B1 --> C1[自動デプロイ]
+    end
+    
+    subgraph Backend["バックエンド"]
+        A2[Push to main] --> B2[GitHub Actions]
+        B2 --> C2[Lint & Test]
+        C2 --> D2[Build Docker Image]
+        D2 --> E2[Push to Artifact Registry]
+        E2 --> F2[Deploy to Cloud Run]
+    end
 ```
 
 | ステージ | ツール | 内容 |
 |----------|--------|------|
-| Lint | ruff | コードスタイルチェック |
-| Type Check | mypy | 静的型チェック |
-| Test | pytest | ユニットテスト |
-| Build | Docker | コンテナイメージビルド |
-| Deploy | gcloud | Cloud Runデプロイ |
+| Lint (Python) | ruff | コードスタイルチェック |
+| Lint (TypeScript) | ESLint | コードスタイルチェック |
+| Type Check (Python) | mypy | 静的型チェック |
+| Test (Python) | pytest | ユニットテスト |
+| Test (TypeScript) | vitest | ユニットテスト |
+| Build | Docker / Vite | イメージ・バンドルビルド |
+| Deploy | gcloud / Vercel | デプロイ |
 
 ### コード品質
 
 ```bash
-# Linting
+# Backend - Python
 uv run ruff check .
 uv run ruff format .
-
-# Type checking
 uv run mypy .
-
-# Testing
 uv run pytest tests/ -v
+
+# Frontend - TypeScript
+pnpm lint
+pnpm build
+pnpm test
 ```
 
 ---
@@ -104,28 +133,17 @@ uv run pytest tests/ -v
 
 | フェーズ | 目安時間 | 備考 |
 |----------|----------|------|
-| フェーズ1 | 1分程度 | テキストフィードバック |
-| フェーズ2 | 数分程度 | 画像生成・投稿 |
-
-> PoCのため、レイテンシやスループットの厳密な目標は設定しません。動作することを優先します。
+| エージェント起動 | 5秒以内 | Eventarcトリガー |
+| フェーズ1（分析） | 1分程度 | テキストフィードバック |
+| フェーズ2（生成） | 3分程度 | 画像生成・保存 |
 
 ---
 
 ## Thinking機能（推論プロセス可視化）
 
-オーケストレーターエージェントでGeminiのThinking機能を使用し、デッサン評価の推論プロセスを透明化します。
-
-### 利点
-
-| 項目 | 説明 |
-|------|------|
-| **評価根拠の明確化** | なぜその評価になったかの推論過程を記録 |
-| **デバッグ容易性** | エージェントの判断ミスを追跡可能 |
-| **フィードバック品質向上** | 深い分析に基づく具体的なアドバイス |
+オーケストレーターエージェントでGeminiのThinking機能を使用。
 
 ### モデルパラメータ設定
-
-#### オーケストレーター
 
 | パラメータ | 値 | 説明 |
 |-----------|-----|------|
@@ -141,32 +159,8 @@ generate_content_config={
     "thinking_config": {
         "thinking_budget_tokens": 8192
     }
-    # その他のパラメータはデフォルト値を使用
 }
 ```
-
-#### サブエージェント（将来拡張時）
-
-| パラメータ | 値 | 説明 |
-|-----------|-----|------|
-| model | `gemini-3-flash-preview` | オーケストレーターと同一 |
-| max_output_tokens | 32000 | 出力トークン上限 |
-| temperature | 1.0 | 創造性バランス |
-| thinking | なし | サブエージェントでは不使用 |
-
-```python
-generate_content_config={
-    "max_output_tokens": 32000,
-    "temperature": 1.0,
-    # thinking_configなし（サブエージェントは単一観点に特化）
-}
-```
-
-### 使用シーン
-
-- プロポーション分析時の形状比較推論
-- 陰影評価時の光源方向判定
-- ランク昇格判定の根拠説明
 
 ---
 
@@ -174,31 +168,31 @@ generate_content_config={
 
 ### Cloud Runデプロイ構成
 
-ADKを使用してCloud Runにエージェントをデプロイする構成：
-
 ```mermaid
 flowchart TB
     subgraph CloudRun["Cloud Run"]
-        subgraph App["FastAPI Application"]
+        subgraph APIServer["API Server"]
             A[main.py]
-            B[ADK API Server]
-            C[root_agent]
+            B[FastAPI]
         end
-        D[Session Service\nFirestore]
-        E[Memory Service\nVertex AI Memory Bank]
+        subgraph Agent["Coaching Agent"]
+            C[agent.py]
+            D[ADK Runtime]
+        end
+        E[Session Service<br/>Firestore]
     end
     
     subgraph External["External Services"]
         F[Gemini API]
-        G[GitHub API]
+        G[Cloud Storage]
+        H[Eventarc]
     end
     
-    A --> B
-    B --> C
-    C --> D
-    C --> E
-    C --> F
-    C --> G
+    B --> E
+    D --> E
+    D --> F
+    D --> G
+    H --> D
 ```
 
 ### セッション管理
@@ -208,56 +202,6 @@ flowchart TB
 | Firestore Session Service | 会話セッションの状態管理 | ✅ 永続 |
 | SQLite (ローカル開発用) | ローカル開発時のセッション保存 | 一時的 |
 
-**設定例**:
-```python
-# session_service_uri の設定
-SESSION_SERVICE_URI = "firestore://PROJECT_ID/sessions"  # 本番
-SESSION_SERVICE_URI = "sqlite+aiosqlite:///./sessions.db"  # ローカル
-```
-
-### 長期メモリ（Memory Bank）
-
-Vertex AI Memory Bankを使用したセマンティック検索によるメモリ機能：
-
-```mermaid
-flowchart LR
-    subgraph Session["セッション（短期）"]
-        A[Session State]
-        B[Current Events]
-    end
-    
-    subgraph Memory["メモリ（長期）"]
-        C[Memory Bank\nベクトル検索]
-        D[過去のフィードバック]
-        E[成長履歴]
-    end
-    
-    A -->|会話終了時| C
-    C -->|検索結果| B
-```
-
-| 項目 | 内容 |
-|------|------|
-| サービス | Vertex AI Memory Bank |
-| 検索タイプ | セマンティック検索（ベクトル類似度） |
-| 用途 | 過去のフィードバック検索、成長追跡 |
-| 構成URI | `agentengine://<agent_engine_id>` |
-
-**設定例**:
-```python
-from google.adk.memory import VertexAiMemoryBankService
-
-memory_service = VertexAiMemoryBankService(
-    project="PROJECT_ID",
-    location="LOCATION",
-    agent_engine_id="AGENT_ENGINE_ID"
-)
-```
-
-**主要機能**:
-- **add_session_to_memory**: 会話終了時にセッション内容をメモリに保存
-- **search_memory**: 過去の会話からセマンティック検索でコンテキストを取得
-
 ---
 
 ## セキュリティ要件
@@ -266,55 +210,46 @@ memory_service = VertexAiMemoryBankService(
 
 ```mermaid
 flowchart TB
-    subgraph GitHub["GitHub"]
-        A[GitHub Actions]
-        B[GitHub App]
+    subgraph User["ユーザー"]
+        A[ブラウザ]
+    end
+
+    subgraph Vercel["Vercel"]
+        B[ウェブアプリ]
     end
 
     subgraph GCP["Google Cloud"]
-        C[Cloud Run]
+        C[Cloud Run API]
         D[Secret Manager]
         E[Service Account]
-        F[Workload Identity]
+        F[Eventarc]
+        G[Cloud Run Agent]
     end
 
-    subgraph External["External"]
-        G[Vertex AI]
-        H[GitHub API]
-    end
-
-    A -->|Workload Identity Federation| F
-    F -->|トークン取得| C
+    A -->|認証(将来)| B
+    B -->|API Call| C
     C -->|サービスアカウント| E
     E -->|GetSecretValue| D
-    D -->|GitHub App秘密鍵| B
-    B -->|Installation Token| H
-    E -->|認証| G
+    F -->|トリガー| G
+    G -->|サービスアカウント| E
 ```
 
 | 項目 | 実装 |
 |------|------|
-| GitHub Actions → Cloud Run | Workload Identity Federation |
-| Cloud Run認証 | IAM認証必須 |
+| ユーザー認証 | 将来実装（Firebase Auth等） |
+| API認証 | APIキー or JWT（将来） |
+| Eventarc → Cloud Run | サービスアカウント |
 | Vertex AI認証 | サービスアカウント（自動） |
-| GitHub認証 | GitHub App（秘密鍵ベース） |
+| GitHub認証 | GitHub App（オプション） |
 
 ### データ保護
 
 | データ | 保護方法 |
 |--------|----------|
-| 入力画像 | 処理後即時削除（メモリ上のみ） |
-| 生成画像 | GitHubコメントに直接投稿（保存なし） |
-| GitHub App秘密鍵 | Secret Manager（暗号化保存） |
+| 入力画像 | Cloud Storage（一定期間後削除） |
+| 生成画像 | Cloud Storage（一定期間後削除） |
+| 秘密鍵 | Secret Manager（暗号化保存） |
 | ログ | Cloud Logging（保持期間設定） |
-
-### ネットワークセキュリティ
-
-| 項目 | 設定 |
-|------|------|
-| Cloud Run | イングレス: すべて許可、認証: 必須 |
-| Firestore | ファイアウォールルール設定 |
-| Secret Manager | IAMポリシーで制限 |
 
 ---
 
@@ -328,42 +263,22 @@ import structlog
 logger = structlog.get_logger()
 
 logger.info(
-    "coaching_request_received",
-    repo=request.repo,
-    pr_number=request.pr_number,
-    image_count=len(images),
+    "review_task_created",
+    task_id=task.task_id,
+    user_id=task.user_id,
+    image_size=len(image_data),
 )
 ```
-
-| ログレベル | 用途 |
-|------------|------|
-| DEBUG | 詳細なデバッグ情報 |
-| INFO | 正常処理のトラッキング |
-| WARNING | 潜在的な問題 |
-| ERROR | エラー発生 |
 
 ### メトリクス
 
 | メトリクス | 説明 |
 |------------|------|
-| `coaching.requests.total` | 総リクエスト数 |
-| `coaching.requests.success` | 成功リクエスト数 |
-| `coaching.requests.error` | エラーリクエスト数 |
-| `coaching.latency.analysis` | 分析処理時間 |
-| `coaching.latency.generation` | 画像生成時間 |
-
-### トレーシング
-
-```python
-from opentelemetry import trace
-
-tracer = trace.get_tracer(__name__)
-
-with tracer.start_as_current_span("analyze_dessin") as span:
-    span.set_attribute("image.size", len(image_data))
-    span.set_attribute("image.type", image_type)
-    result = await analyze(image_data)
-```
+| `review.tasks.total` | 総タスク数 |
+| `review.tasks.completed` | 完了タスク数 |
+| `review.tasks.failed` | 失敗タスク数 |
+| `review.latency.analysis` | 分析処理時間 |
+| `review.latency.generation` | 画像生成時間 |
 
 ---
 
@@ -375,7 +290,7 @@ with tracer.start_as_current_span("analyze_dessin") as span:
 |----------|----|------|
 | 一時的エラー | API タイムアウト、レートリミット | リトライ（指数バックオフ） |
 | 永続的エラー | 無効な画像形式、認証エラー | エラー通知、処理終了 |
-| 部分的エラー | 画像生成のみ失敗 | フェーズ1は成功扱い、フェーズ2スキップ通知 |
+| 部分的エラー | 画像生成のみ失敗 | フェーズ1は成功扱い、フェーズ2スキップ |
 
 ### リトライ戦略
 
@@ -390,21 +305,13 @@ async def call_vertex_ai(prompt: str, image: bytes) -> str:
     ...
 ```
 
-| パラメータ | 値 |
-|------------|-----|
-| 最大リトライ回数 | 3回 |
-| 初回待機時間 | 2秒 |
-| 最大待機時間 | 30秒 |
-| バックオフ係数 | 2x（指数） |
-
 ---
 
 ## 依存関係
 
-### Python パッケージ
+### Python パッケージ (agent/)
 
 ```toml
-# pyproject.toml
 [project]
 name = "dessin-coaching-agent"
 version = "0.1.0"
@@ -413,13 +320,16 @@ dependencies = [
     "google-adk>=0.1.0",
     "google-cloud-aiplatform>=1.0.0",
     "google-cloud-firestore>=2.0.0",
+    "google-cloud-storage>=2.0.0",
     "google-cloud-secret-manager>=2.0.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
     "httpx>=0.27.0",
     "pydantic>=2.0.0",
     "structlog>=24.0.0",
     "tenacity>=9.0.0",
     "pillow>=11.0.0",
-    "PyGithub>=2.0.0",
+    "pywebpush>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -431,17 +341,51 @@ dev = [
 ]
 ```
 
+### Node.js パッケージ (webapp/)
+
+```json
+{
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "zustand": "^4.5.2",
+    "swr": "^2.3.0",
+    "tailwind-merge": "^2.4.0"
+  },
+  "devDependencies": {
+    "vite": "^6.4.1",
+    "typescript": "^5.4.5",
+    "tailwindcss": "^3.4.3",
+    "@vitejs/plugin-react": "^4.2.0",
+    "vite-plugin-pwa": "^0.21.1",
+    "vitest": "^3.0.7",
+    "eslint": "^8.57.0"
+  }
+}
+```
+
 ---
 
 ## 環境変数
 
+### バックエンド
+
 | 変数名 | 説明 | 取得元 |
 |--------|------|--------|
 | `GCP_PROJECT_ID` | GCPプロジェクトID | 環境 |
-| `GITHUB_APP_SECRET_ID` | GitHub App秘密鍵のSecret ID | 環境 |
-| `GITHUB_APP_ID` | GitHub App ID | 環境 |
-| `GITHUB_APP_INSTALLATION_ID` | Installation ID | 環境 |
-| `FIRESTORE_COLLECTION` | ユーザーランクコレクション名 | 環境 |
+| `STORAGE_BUCKET` | Cloud Storageバケット名 | 環境 |
+| `CDN_BASE_URL` | Cloud CDNのベースURL | 環境 |
+| `FIRESTORE_DATABASE` | Firestoreデータベース名 | 環境 |
+| `VAPID_PUBLIC_KEY` | Web Push用公開鍵 | 環境 |
+| `VAPID_PRIVATE_KEY_SECRET_ID` | 秘密鍵のSecret ID | 環境 |
+| `GITHUB_APP_SECRET_ID` | GitHub App秘密鍵（オプション） | 環境 |
+
+### フロントエンド
+
+| 変数名 | 説明 |
+|--------|------|
+| `VITE_API_BASE_URL` | APIサーバーのURL |
+| `VITE_VAPID_PUBLIC_KEY` | Web Push用公開鍵 |
 
 ---
 
@@ -474,31 +418,7 @@ gcloud run deploy dessin-coaching-agent \
   --region REGION \
   --allow-unauthenticated=false \
   --memory 512Mi \
-  --timeout 300 \
-  --set-env-vars GCP_PROJECT_ID=PROJECT_ID
-```
-
-### Workload Identity Federation 設定
-
-GitHub ActionsからCloud Runを呼び出すためのWorkload Identity Federation設定：
-
-```bash
-# Workload Identity Pool 作成
-gcloud iam workload-identity-pools create github-pool \
-  --location="global" \
-  --display-name="GitHub Actions Pool"
-
-# Provider 作成
-gcloud iam workload-identity-pools providers create-oidc github-provider \
-  --location="global" \
-  --workload-identity-pool="github-pool" \
-  --issuer-uri="https://token.actions.githubusercontent.com" \
-  --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository"
-
-# サービスアカウントへのバインド
-gcloud iam service-accounts add-iam-policy-binding SA_NAME@PROJECT_ID.iam.gserviceaccount.com \
-  --role="roles/iam.workloadIdentityUser" \
-  --member="principalSet://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/attribute.repository/OWNER/REPO"
+  --timeout 300
 ```
 
 ---
@@ -506,18 +426,20 @@ gcloud iam service-accounts add-iam-policy-binding SA_NAME@PROJECT_ID.iam.gservi
 ## ハッカソン対応：必須技術チェックリスト
 
 ### アプリケーション実行プロダクト（必須）
-- [x] **Cloud Run** - エージェントホスティング
+- [x] **Cloud Run** - API + Agentホスティング
 
 ### AI技術（必須）
 - [x] **Vertex AI** - AIモデル管理
-- [x] **Gemini API（Vertex AI経由）** - gemini-3-flash-preview（分析）, gemini-2.5-flash-image（画像生成）
+- [x] **Gemini API（Vertex AI経由）** - gemini-3-flash-preview, gemini-2.5-flash-image
 - [x] **ADK (Agents Development Kit)** - エージェント構築フレームワーク
 
 ### その他の技術（任意）
-- [x] **Firestore** - セッション管理、ユーザーランク管理
-- [x] **Vertex AI Memory Bank** - 長期メモリ（ベクトル検索）
-- [x] **Secret Manager** - GitHub App秘密鍵
+- [x] **Cloud Storage** - 画像ストレージ
+- [x] **Cloud CDN** - 画像配信
+- [x] **Eventarc** - イベント駆動トリガー
+- [x] **Firestore** - タスク・ランク管理
+- [x] **Secret Manager** - 秘密鍵管理
 - [x] **Cloud Logging** - ログ出力
-- [ ] Firebase - 未使用
-- [ ] Flutter - 未使用
+- [ ] Firebase Auth - 将来実装
+- [ ] Flutter - モバイルアプリ（将来）
 - [ ] Veo - 未使用
