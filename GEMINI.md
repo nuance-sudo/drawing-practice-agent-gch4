@@ -5,7 +5,30 @@
 
 ## プロジェクト構造
 
-本リポジトリは、タスク管理アプリケーション専用のリポジトリです。
+本リポジトリは、鉛筆デッサンコーチングエージェントアプリケーション専用のリポジトリです。
+
+### モノレポ構成
+
+`packages/`配下でエージェント・ウェブアプリ・インフラを統合管理します。
+
+```
+packages/
+├── agent/    # エージェント・API実装（Python/ADK）
+├── web/      # ウェブアプリ実装（React/Vite）
+└── infra/    # インフラ定義（Terraform/gcloud）
+```
+
+ルートの`Makefile`で統合コマンドを提供（`make deploy-all`, `make deploy-agent`, `make deploy-web`等）。
+
+### Coding Standards
+
+コードを変更する際は、各パッケージのコーディング規約に従ってください：
+
+| パッケージ | 規約ファイル | 内容 |
+|-----------|-------------|------|
+| **packages/agent** | [CODING_RULES.md](packages/agent/CODING_RULES.md) | Python/ADK、型定義、エラーハンドリング |
+| **packages/web** | [CODING_RULES.md](packages/web/CODING_RULES.md) | React/TypeScript、Zustand、SWR、Tailwind CSS |
+| **packages/infra** | [CODING_RULES.md](packages/infra/CODING_RULES.md) | Terraform、gcloudスクリプト |
 
 ### ドキュメントの分類
 
@@ -112,6 +135,7 @@ date +%s
 #### 1. フォルダ作成
 ```bash
 mkdir -p docs
+mkdir -p packages/agent packages/web packages/infra
 mkdir -p .gemini/steering
 ```
 
@@ -263,9 +287,31 @@ graph TD
 ## 注意事項
 
 - ドキュメントの作成・更新は段階的に行い、各段階で承認を得る
-- ステアリングディレクトリ名はunix timestampと開発タイトルで明確に識別できるようにする
 - 永続的ドキュメントと作業単位のドキュメントを混同しない
-- コード変更後は必ずリント・型チェックを実施する
-- 共通のデザインシステム（Tailwind CSS）を使用して統一感を保つ
-- セキュリティを考慮したコーディング（XSS対策、入力バリデーションなど）
 - 図表は必要最小限に留め、メンテナンスコストを抑える
+
+> 詳細なルールはAgent Skillsを参照してください。
+
+## Agent Skills
+
+本プロジェクトでは`.agent/skills/`配下にAgent Skillsを定義しています。
+
+### 利用可能なスキル
+
+| スキル名 | 説明 | 呼び出し方 |
+|----------|------|-----------|
+| `pre-deploy-check` | デプロイ前のテスト・構文チェック・リント・型チェック | `/pre-deploy-check` |
+| `code-quality` | コーディング規約・命名規則・スタイリングの確認 | `/code-quality` |
+| `git-commit` | コミット・プッシュ・ブランチ作成・PR作成 | `/git-commit` |
+
+### スキルの配置場所
+
+```
+.agent/skills/
+├── pre-deploy-check/
+│   └── SKILL.md
+├── code-quality/
+│   └── SKILL.md
+└── git-commit/
+    └── SKILL.md
+```
