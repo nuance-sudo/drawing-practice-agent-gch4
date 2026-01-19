@@ -1,10 +1,5 @@
 """認証依存関数
-
-FastAPIのDepends用認証関数を提供する。
-- 本番: JWT検証
-- 開発: X-User-IDヘッダーベースのモック認証
-"""
-
+from firebase_admin import auth
 import structlog
 from fastapi import Header, HTTPException, status
 from pydantic import BaseModel
@@ -19,6 +14,7 @@ class AuthenticatedUser(BaseModel):
 
     user_id: str
     email: str | None = None
+    picture: str | None = None
 
 
 async def get_current_user(
@@ -28,7 +24,7 @@ async def get_current_user(
     """認証済みユーザーを取得する依存関数
 
     Args:
-        authorization: Authorization ヘッダー（Bearer JWT）
+        authorization: Authorization ヘッダー（Bearer Token）
         x_user_id: X-User-ID ヘッダー（開発用モック認証）
 
     Returns:
@@ -52,7 +48,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # 本番モード: JWT認証
+    # 本番モード: Firebase Authentication
     if not authorization:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -71,55 +67,28 @@ async def get_current_user(
     token = authorization[7:]  # "Bearer "を除去
 
     # JWT検証
-    user = await verify_jwt(token)
-    if user is None:
+    try:
+        # Note: verify_id_token checks valid signature, expiration, and project ID ("aud").
+        # To strictly isolate services within the same project, verified Custom Claims (e.g. "service": "agent") would be required.
+        decoded_token = auth.verify_id_token(token, check_revoked=True)
+        user_id = decoded_token.get("uid")
+        email = decoded_token.get("email")
+        picture = decoded_token.get("picture")
+
+        logger.info(
+            "firebase_auth_success",
+            user_id=user_id,
+        )
+        return AuthenticatedUser(
+            user_id=user_id,
+            email=email,
+            picture=picture,
+        )
+
+    except Exception as e:
+        logger.warning("firebase_auth_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    logger.info(
-        "jwt_auth_success",
-        user_id=user.user_id,
-    )
-    return user
-
-
-async def verify_jwt(token: str) -> AuthenticatedUser | None:
-    """JWTトークンを検証する
-
-    Args:
-        token: JWTトークン
-
-    Returns:
-        AuthenticatedUser: 検証成功時のユーザー情報
-        None: 検証失敗時
-
-    Note:
-        フロントエンド（Auth.js）実装後に本実装を追加。
-        現在は常にNoneを返す（本番認証は未実装）。
-    """
-    # TODO: Auth.js実装後にJWT検証を実装
-    # import jwt
-    # try:
-    #     payload = jwt.decode(
-    #         token,
-    #         settings.auth_secret,
-    #         algorithms=["HS256"],
-    #     )
-    #     return AuthenticatedUser(
-    #         user_id=payload.get("sub"),
-    #         email=payload.get("email"),
-    #     )
-    # except jwt.InvalidTokenError:
-    #     return None
-
-    # 未実装のためトークンを使用せずにNoneを返す
-    _ = token  # 引数は将来使用予定
-
-    logger.warning(
-        "jwt_verification_not_implemented",
-        message="JWT verification is not yet implemented. Use mock auth for development.",
-    )
-    return None
+        ) from e

@@ -19,6 +19,8 @@ dependencies = [
     "tenacity>=9.0.0",
     "pillow>=11.0.0",
     "python-multipart>=0.0.18",
+    "pyjwt>=2.8.0",
+    "firebase-admin>=6.5.0",
 ]
 
 [project.optional-dependencies]

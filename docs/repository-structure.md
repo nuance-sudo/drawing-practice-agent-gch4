@@ -50,7 +50,7 @@ deploy-agent:
 
 # ウェブアプリのみデプロイ
 deploy-web:
-	cd packages/web && pnpm build && vercel --prod
+	cd packages/web && firebase deploy --only hosting
 
 # ローカル開発（全体起動）
 dev:
@@ -183,7 +183,7 @@ packages/agent/
 
 ### `packages/web/` - ウェブアプリ実装
 
-React + Vite + Tailwind CSSのウェブアプリ。Vercelにデプロイ。
+React + Vite + Tailwind CSSのウェブアプリ。Firebase Hostingにデプロイ。
 
 ```
 packages/web/
@@ -395,8 +395,9 @@ build/
 # Vite
 *.local
 
-# Vercel
-.vercel/
+# Firebase
+.firebase/
+firebase-debug.log
 ```
 
 ### コミット対象外
@@ -444,6 +445,6 @@ root_agent = Agent(
 | `docs/` | 設計ドキュメントが揃っている |
 | `.github/workflows/` | CI/CDワークフローが動作する |
 | `packages/agent/` | エージェントコードがCloud Runにデプロイ可能 |
-| `packages/web/` | ウェブアプリがVercelにデプロイ可能 |
+| `packages/web/` | ウェブアプリがFirebase Hostingにデプロイ可能 |
 | `Makefile` | 統合管理コマンドが動作する |
 | ライセンス | ライセンスファイルがある（必要に応じて） |

@@ -12,7 +12,7 @@
 | 認証 | Auth.js | 5.x | GitHub OAuth認証 |
 | 状態管理 | Zustand | 5.x | グローバルステート |
 | データフェッチ | SWR | 2.x | キャッシュ・ポーリング |
-| ホスティング | Vercel | - | 自動デプロイ |
+| ホスティング | Firebase Hosting | - | 静的アセット・SSR |
 
 > **参考**: [aws-samples/generative-ai-use-cases](https://github.com/aws-samples/generative-ai-use-cases)
 
@@ -59,7 +59,7 @@
 
 | サービス | 用途 |
 |----------|------|
-| Vercel | ウェブアプリホスティング |
+| Firebase Hosting | ウェブアプリホスティング |
 | GitHub API | PR連携（オプション） |
 | GitHub Actions | PRトリガー（オプション） |
 | GitHub App | 認証（オプション） |
@@ -83,8 +83,8 @@
 ```mermaid
 flowchart LR
     subgraph Frontend["フロントエンド"]
-        A1[Push to main] --> B1[Vercel]
-        B1 --> C1[自動デプロイ]
+        A1[Push to main] --> B1[Firebase Hosting]
+        B1 --> C1[GitHub Actions / Cloud Build]
     end
     
     subgraph Backend["バックエンド"]
@@ -104,7 +104,7 @@ flowchart LR
 | Test (Python) | pytest | ユニットテスト |
 | Test (TypeScript) | vitest | ユニットテスト |
 | Build | Docker / Vite | イメージ・バンドルビルド |
-| Deploy | gcloud / Vercel | デプロイ |
+| Deploy | gcloud / Firebase CLI | デプロイ |
 
 ### コード品質
 
@@ -225,7 +225,7 @@ flowchart TB
         H[GitHub OAuth]
     end
 
-    subgraph Vercel["Vercel"]
+    subgraph Firebase["Firebase Hosting"]
         B[Next.js + Auth.js]
     end
 
@@ -396,14 +396,17 @@ dev = [
 | `VAPID_PRIVATE_KEY_SECRET_ID` | 秘密鍵のSecret ID | 環境 |
 | `GITHUB_APP_SECRET_ID` | GitHub App秘密鍵（オプション） | 環境 |
 
-### フロントエンド（Vercel）
+### フロントエンド（Firebase Hosting）
 
 | 変数名 | 説明 |
 |--------|------|
 | `NEXT_PUBLIC_API_BASE_URL` | APIサーバーのURL |
-| `AUTH_SECRET` | Auth.js セッション暗号化キー |
-| `AUTH_GITHUB_ID` | GitHub OAuth Client ID |
-| `AUTH_GITHUB_SECRET` | GitHub OAuth Client Secret |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase API Key |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Auth Domain |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase Project ID |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase Storage Bucket |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase Messaging Sender ID |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase App ID |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Web Push用公開鍵（オプション）|
 
 ---

@@ -4,8 +4,17 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+import firebase_admin
+from firebase_admin import credentials
+
 from src.api.reviews import router as reviews_router
 from src.config import settings
+
+# Initialize Firebase Admin
+try:
+    firebase_admin.get_app()
+except ValueError:
+    firebase_admin.initialize_app()
 
 # structlog設定
 structlog.configure(

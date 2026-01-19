@@ -292,6 +292,52 @@ class TaskService:
         )
 
 
+    def generate_upload_url(self, content_type: str) -> dict[str, str]:
+        """GCSへのアップロード用署名付きURLを生成
+
+        Args:
+            content_type: アップロードするファイルのContent-Type (image/jpeg or image/png)
+
+        Returns:
+            dict: {
+                "upload_url": 署名付きURL,
+                "public_url": アップロード後の公開URL
+            }
+        """
+        import datetime
+        from google.cloud import storage
+
+        # Content-Typeに基づいた拡張子の決定
+        ext = ".jpg" if content_type == "image/jpeg" else ".png"
+        filename = f"{uuid.uuid4()}{ext}"
+        blob_name = f"uploads/{filename}"
+
+        # GCSクライアントの初期化（再利用されていない場合）
+        storage_client = storage.Client(project=settings.gcp_project_id)
+        bucket = storage_client.bucket(settings.gcs_bucket_name)
+        blob = bucket.blob(blob_name)
+
+        # 署名付きURLの生成 (PUTメソッド用, 15分有効)
+        url = blob.generate_signed_url(
+            version="v4",
+            expiration=datetime.timedelta(minutes=15),
+            method="PUT",
+            content_type=content_type,
+        )
+
+        # 公開URLの生成 (CDN経由を想定するか、直接GCS参照か)
+        # CDN Base URLが設定されていればそれを使用、なければGCSの公開URL
+        if settings.cdn_base_url:
+            public_url = f"{settings.cdn_base_url}/{blob_name}"
+        else:
+            public_url = f"https://storage.googleapis.com/{settings.gcs_bucket_name}/{blob_name}"
+
+        return {
+            "upload_url": url,
+            "public_url": public_url,
+        }
+
+
 # シングルトンインスタンス
 _task_service: TaskService | None = None
 
