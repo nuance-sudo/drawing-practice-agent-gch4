@@ -1,0 +1,18 @@
+[
+    {
+        "origin": [
+            "https://drawing-practice-agent.web.app",
+            "https://drawing-practice-agent.firebaseapp.com",
+            "http://localhost:3000"
+        ],
+        "method": [
+            "PUT",
+            "GET",
+            "OPTIONS"
+        ],
+        "responseHeader": [
+            "Content-Type"
+        ],
+        "maxAgeSeconds": 3600
+    }
+]

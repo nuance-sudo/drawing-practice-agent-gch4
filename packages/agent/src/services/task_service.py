@@ -306,24 +306,54 @@ class TaskService:
         """
         import datetime
         from google.cloud import storage
+        import google.auth
+        from google.auth.transport import requests
+        from google.auth import compute_engine
 
         # Content-Typeに基づいた拡張子の決定
         ext = ".jpg" if content_type == "image/jpeg" else ".png"
         filename = f"{uuid.uuid4()}{ext}"
         blob_name = f"uploads/{filename}"
 
-        # GCSクライアントの初期化（再利用されていない場合）
+        # GCSクライアントの初期化
         storage_client = storage.Client(project=settings.gcp_project_id)
         bucket = storage_client.bucket(settings.gcs_bucket_name)
         blob = bucket.blob(blob_name)
 
-        # 署名付きURLの生成 (PUTメソッド用, 15分有効)
-        url = blob.generate_signed_url(
-            version="v4",
-            expiration=datetime.timedelta(minutes=15),
-            method="PUT",
-            content_type=content_type,
-        )
+        # Cloud Run環境用: IAM Credentials APIを使用した署名
+        # デフォルトのサービスアカウント認証情報を取得
+        credentials, project = google.auth.default()
+        
+        # 認証情報がコンピュート認証の場合、署名用認証情報に変換
+        if isinstance(credentials, compute_engine.Credentials):
+            # サービスアカウントのメールアドレスを取得
+            auth_request = requests.Request()
+            credentials.refresh(auth_request)
+            service_account_email = credentials.service_account_email
+            
+            # 署名用認証情報を作成
+            signing_credentials = compute_engine.IDTokenCredentials(
+                auth_request,
+                target_audience="",
+                service_account_email=service_account_email,
+            )
+            # 署名付きURLの生成（IAMを使用）
+            url = blob.generate_signed_url(
+                version="v4",
+                expiration=datetime.timedelta(minutes=15),
+                method="PUT",
+                content_type=content_type,
+                service_account_email=service_account_email,
+                access_token=credentials.token,
+            )
+        else:
+            # ローカル環境など：直接署名
+            url = blob.generate_signed_url(
+                version="v4",
+                expiration=datetime.timedelta(minutes=15),
+                method="PUT",
+                content_type=content_type,
+            )
 
         # 公開URLの生成 (CDN経由を想定するか、直接GCS参照か)
         # CDN Base URLが設定されていればそれを使用、なければGCSの公開URL
