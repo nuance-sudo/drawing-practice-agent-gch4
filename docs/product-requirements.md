@@ -176,7 +176,7 @@
 
 ### FR-001: ウェブアプリ
 - React + Vite + Tailwind CSS + Zustand + SWR構成
-- Vercelでホスティング（自動CI/CD）
+- Firebase Hostingでホスティング（GitHub連携CI/CD）
 - PWA対応（Service Worker）
 - レスポンシブデザイン
 
@@ -274,5 +274,5 @@
 - **Artifact Registry**: コンテナイメージ管理
 
 ### 外部サービス
-- **Vercel**: ウェブアプリホスティング
+- **Firebase Hosting**: ウェブアプリホスティング
 - **GitHub**: オプション機能用（PR連携）

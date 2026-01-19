@@ -16,7 +16,7 @@ flowchart TB
         A[ユーザー<br/>ブラウザ]
     end
 
-    subgraph Vercel["Vercel"]
+    subgraph Firebase["Firebase Hosting"]
         B[ウェブアプリ<br/>React + PWA]
     end
 
@@ -79,7 +79,7 @@ flowchart TB
 ```mermaid
 sequenceDiagram
     participant User as ユーザー
-    participant Web as ウェブアプリ<br/>(Vercel)
+    participant Web as ウェブアプリ<br/>(Firebase Hosting)
     participant API as API Server<br/>(Cloud Run)
     participant GCS as Cloud Storage
     participant CDN as Cloud CDN
@@ -151,7 +151,7 @@ flowchart TB
 
 ## コンポーネント設計
 
-### 1. ウェブアプリ（Vercel）
+### 1. ウェブアプリ（Firebase Hosting）
 
 **責務**: ユーザーインターフェース、画像アップロード、結果表示、プッシュ通知
 
@@ -160,7 +160,7 @@ flowchart TB
 - Next.js 16.x (App Router)
 - TypeScript 5.x
 - Tailwind CSS 4.x
-- Auth.js 5.x（GitHub OAuth認証）
+- Firebase Authentication (GitHub)
 - Zustand 5.x（状態管理）
 - SWR 2.x（データフェッチ・ポーリング）
 
@@ -170,7 +170,7 @@ packages/web/
 │   ├── api/
 │   │   └── auth/
 │   │       └── [...nextauth]/
-│   │           └── route.ts    # Auth.js設定
+│   │           └── route.ts    # API Routes
 │   ├── (authenticated)/        # 認証必須ページ
 │   │   ├── review/
 │   │   │   └── page.tsx
@@ -190,7 +190,7 @@ packages/web/
 │   ├── useReview.ts
 │   └── usePushNotification.ts
 ├── lib/
-│   ├── auth.ts                 # Auth.js設定
+│   ├── firebase.ts             # Firebase初期化
 │   └── api.ts                  # API呼び出し
 ├── public/
 │   └── sw.js                   # Service Worker
@@ -509,12 +509,12 @@ _この画像はAI（gemini-2.5-flash-image）によって生成されました_
 
 ## 外部サービス連携
 
-### 1. Vercel
+### 1. Firebase Hosting
 
 | 操作 | 用途 |
 |------|------|
-| 自動デプロイ | GitHub連携によるCI/CD |
-| エッジ配信 | 静的コンテンツの高速配信 |
+| ホスティング | Next.jsアプリ (SSR/Static) の配信 |
+| CDN | 静的アセットのグローバル配信 |
 
 ### 2. Cloud Storage / CDN
 

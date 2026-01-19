@@ -68,7 +68,9 @@ async def get_current_user(
 
     # JWT検証
     try:
-        decoded_token = auth.verify_id_token(token)
+        # Note: verify_id_token checks valid signature, expiration, and project ID ("aud").
+        # To strictly isolate services within the same project, verified Custom Claims (e.g. "service": "agent") would be required.
+        decoded_token = auth.verify_id_token(token, check_revoked=True)
         user_id = decoded_token.get("uid")
         email = decoded_token.get("email")
         picture = decoded_token.get("picture")
