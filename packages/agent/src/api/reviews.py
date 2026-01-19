@@ -20,6 +20,26 @@ logger = structlog.get_logger()
 router = APIRouter(prefix="/reviews", tags=["reviews"])
 
 
+@router.get("/upload-url")
+async def get_upload_url(
+    content_type: str = Query(..., regex="^image/(jpeg|png)$"),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> dict[str, str]:
+    """アップロード用署名付きURLを取得
+
+    Args:
+        content_type: アップロードするファイルのMIMEタイプ (image/jpeg or image/png)
+
+    Returns:
+        dict: {
+            "upload_url": 署名付きURL (PUT用),
+            "public_url": 公開URL
+        }
+    """
+    service = get_task_service()
+    return service.generate_upload_url(content_type)
+
+
 @router.post("", response_model=ReviewTaskResponse, status_code=201)
 async def create_review(
     request: CreateReviewRequest,

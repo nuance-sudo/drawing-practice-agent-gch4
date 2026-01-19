@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     auth_secret: str = ""  # JWT署名用シークレット
 
     # CORS設定
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    cors_origins: list[str] = ["*"]
 
     class Config:
         env_file = ".env"

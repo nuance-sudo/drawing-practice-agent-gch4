@@ -100,26 +100,17 @@ async def verify_jwt(token: str) -> AuthenticatedUser | None:
         フロントエンド（Auth.js）実装後に本実装を追加。
         現在は常にNoneを返す（本番認証は未実装）。
     """
-    # TODO: Auth.js実装後にJWT検証を実装
-    # import jwt
-    # try:
-    #     payload = jwt.decode(
-    #         token,
-    #         settings.auth_secret,
-    #         algorithms=["HS256"],
-    #     )
-    #     return AuthenticatedUser(
-    #         user_id=payload.get("sub"),
-    #         email=payload.get("email"),
-    #     )
-    # except jwt.InvalidTokenError:
-    #     return None
+    try:
+        import jwt
 
-    # 未実装のためトークンを使用せずにNoneを返す
-    _ = token  # 引数は将来使用予定
-
-    logger.warning(
-        "jwt_verification_not_implemented",
-        message="JWT verification is not yet implemented. Use mock auth for development.",
-    )
-    return None
+        payload = jwt.decode(
+            token,
+            settings.auth_secret,
+            algorithms=["HS256"],
+        )
+        return AuthenticatedUser(
+            user_id=payload.get("sub"),
+            email=payload.get("email"),
+        )
+    except jwt.InvalidTokenError:
+        return None
