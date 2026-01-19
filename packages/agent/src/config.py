@@ -38,7 +38,12 @@ class Settings(BaseSettings):
     auth_secret: str = ""  # JWT署名用シークレット
 
     # CORS設定
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://drawing-practice-agent.web.app",
+        "https://drawing-practice-agent.firebaseapp.com",
+    ]
 
     class Config:
         env_file = ".env"
