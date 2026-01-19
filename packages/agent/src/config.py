@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     debug: bool = False
     log_level: str = "INFO"
 
+    # 認証設定
+    auth_enabled: bool = True  # False: モック認証（開発用）
+    auth_secret: str = ""  # JWT署名用シークレット
+
     # CORS設定
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 

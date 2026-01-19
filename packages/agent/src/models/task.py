@@ -82,9 +82,11 @@ class ReviewTask(BaseModel):
 
 
 class CreateReviewRequest(BaseModel):
-    """審査リクエスト作成用モデル"""
+    """審査リクエスト作成用モデル
 
-    user_id: str = Field(..., description="ユーザーID", min_length=1, max_length=100)
+    user_idは認証から取得するためリクエストには含めない。
+    """
+
     image_url: str = Field(..., description="元画像のURL（Cloud Storage/CDNのみ）")
     example_image_url: str | None = Field(
         default=None, description="お手本画像のURL（Cloud Storage/CDNのみ）"

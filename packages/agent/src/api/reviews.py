@@ -1,11 +1,13 @@
 """審査API エンドポイント
 
 審査リクエストの作成・取得・一覧取得を行うREST API。
+認証済みユーザーのみアクセス可能。
 """
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from src.auth import AuthenticatedUser, get_current_user
 from src.models.task import (
     CreateReviewRequest,
     ReviewListResponse,
@@ -19,15 +21,19 @@ router = APIRouter(prefix="/reviews", tags=["reviews"])
 
 
 @router.post("", response_model=ReviewTaskResponse, status_code=201)
-async def create_review(request: CreateReviewRequest) -> ReviewTaskResponse:
+async def create_review(
+    request: CreateReviewRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> ReviewTaskResponse:
     """審査リクエストを作成
 
     画像URLを受け取り、新規タスクを作成してpending状態で返す。
+    user_idは認証済みユーザーから取得する。
     """
     service = get_task_service()
 
     task = service.create_task(
-        user_id=request.user_id,
+        user_id=current_user.user_id,  # 認証済みユーザーから取得
         image_url=request.image_url,
         example_image_url=request.example_image_url,
     )
@@ -42,7 +48,10 @@ async def create_review(request: CreateReviewRequest) -> ReviewTaskResponse:
 
 
 @router.get("/{task_id}", response_model=ReviewTaskResponse)
-async def get_review(task_id: str) -> ReviewTaskResponse:
+async def get_review(
+    task_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> ReviewTaskResponse:
     """審査タスク詳細を取得
 
     Args:
@@ -53,26 +62,36 @@ async def get_review(task_id: str) -> ReviewTaskResponse:
 
     Raises:
         HTTPException 404: タスクが見つからない場合
+        HTTPException 403: 他ユーザーのタスクにアクセスした場合
     """
     service = get_task_service()
 
     task = service.get_task(task_id)
 
     if task is None:
-        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+        # 情報漏洩を防ぐため汎用的なメッセージを返す
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # 所有権チェック
+    if task.user_id != current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
 
     return ReviewTaskResponse.from_task(task)
 
 
 @router.get("", response_model=ReviewListResponse)
 async def list_reviews(
-    user_id: str = Query(..., description="ユーザーID"),
+    current_user: AuthenticatedUser = Depends(get_current_user),
     limit: int = Query(default=20, ge=1, le=100, description="取得件数の上限"),
 ) -> ReviewListResponse:
     """審査タスク一覧を取得
 
+    認証済みユーザーのタスクのみ取得する。
+
     Args:
-        user_id: ユーザーID
         limit: 取得件数の上限（1-100）
 
     Returns:
@@ -80,7 +99,8 @@ async def list_reviews(
     """
     service = get_task_service()
 
-    tasks = service.list_tasks(user_id=user_id, limit=limit)
+    # 認証済みユーザーのタスクのみ取得
+    tasks = service.list_tasks(user_id=current_user.user_id, limit=limit)
 
     return ReviewListResponse(
         tasks=[ReviewTaskResponse.from_task(task) for task in tasks],
@@ -89,7 +109,10 @@ async def list_reviews(
 
 
 @router.delete("/{task_id}", status_code=204)
-async def delete_review(task_id: str) -> None:
+async def delete_review(
+    task_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> None:
     """審査タスクを削除
 
     Args:
@@ -97,15 +120,30 @@ async def delete_review(task_id: str) -> None:
 
     Raises:
         HTTPException 404: タスクが見つからない場合
+        HTTPException 403: 他ユーザーのタスクを削除しようとした場合
     """
     service = get_task_service()
+
+    # まずタスクを取得して所有権チェック
+    task = service.get_task(task_id)
+
+    if task is None:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # 所有権チェック
+    if task.user_id != current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
 
     deleted = service.delete_task(task_id)
 
     if not deleted:
-        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+        raise HTTPException(status_code=404, detail="Not found")
 
     logger.info(
         "review_deleted",
         task_id=task_id,
+        user_id=current_user.user_id,
     )

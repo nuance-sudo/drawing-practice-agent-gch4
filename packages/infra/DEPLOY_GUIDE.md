@@ -137,11 +137,3 @@ Cloud Runのログを確認してください：
 ```bash
 gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=dessin-coaching-agent" --limit=30
 ```
-
----
-
-## 次のステップ
-
-- [ ] Terraform化
-- [ ] 認証機能の実装（Issue #34）
-- [ ] ウェブアプリのデプロイ
