@@ -1,5 +1,13 @@
-import { getAuthToken } from './auth';
+import { auth } from './firebase';
 import type { ReviewTask } from '@/types/task';
+
+async function getAuthToken(): Promise<string> {
+    const user = auth.currentUser;
+    if (!user) {
+        throw new Error('User not authenticated');
+    }
+    return user.getIdToken();
+}
 
 // 環境変数またはデフォルトのlocalhost
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';

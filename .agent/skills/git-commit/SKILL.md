@@ -40,7 +40,7 @@ git checkout -b feature/[機能名]
 | `refactor/` | リファクタリング | `refactor/task-service` |
 | `chore/` | 雑務・設定変更 | `chore/update-deps` |
 
-### 2. walkthrough作成（コミット前に必須）
+### 2. 作業完了後のwalkthrough作成（コミット前に必須）
 
 ステアリングディレクトリにwalkthroughを作成：
 
