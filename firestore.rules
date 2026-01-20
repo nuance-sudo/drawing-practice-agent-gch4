@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // タスクコレクション
+    // ユーザーは自分のタスクのみ読み取り可能
+    // 書き込みはサーバー（エージェント）のみ
+    match /review_tasks/{taskId} {
+      allow read: if request.auth != null && resource.data.user_id == request.auth.uid;
+      allow write: if false; // サーバーサイドのみ
+    }
+
+    // ユーザーランクコレクション
+    // ユーザーは自分のランクのみ読み取り可能
+    match /user_ranks/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false; // サーバーサイドのみ
+    }
+
+    // プッシュ通知サブスクリプション
+    // ユーザーは自分のサブスクリプションのみ読み書き可能
+    match /push_subscriptions/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

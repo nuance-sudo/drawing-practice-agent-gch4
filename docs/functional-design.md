@@ -95,7 +95,7 @@ sequenceDiagram
     API->>DB: タスク作成 (pending)
     API-->>Web: タスクID返却
     
-    Note over User,Web: ポーリング開始/Push購読
+    Note over User,Web: Firestoreリアルタイム監視開始
     
     GCS->>Eventarc: オブジェクト作成イベント
     Eventarc->>Agent: 即時トリガー
@@ -187,7 +187,7 @@ packages/web/
 ├── stores/                     # Zustandストア
 │   └── taskStore.ts
 ├── hooks/                      # カスタムフック
-│   ├── useReview.ts
+│   ├── useTaskRealtime.ts      # Firestoreリアルタイム監視
 │   └── usePushNotification.ts
 ├── lib/
 │   ├── firebase.ts             # Firebase初期化
@@ -604,6 +604,43 @@ push_subscriptions/
 | tasks | user_id, created_at | 複合（昇順、降順） |
 | tasks | status | 単一 |
 | user_ranks | rank_level | 降順 |
+
+### リアルタイム監視（onSnapshot）
+
+ウェブアプリからFirestoreの`tasks`コレクションをリアルタイム監視し、エージェントがタスクステータスを更新した瞬間にUIに反映します。
+
+```typescript
+// useTaskRealtime.ts
+import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
+export const useTaskRealtime = (userId: string) => {
+  const [tasks, setTasks] = useState<ReviewTask[]>([]);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'tasks'),
+      where('user_id', '==', userId),
+      orderBy('created_at', 'desc')
+    );
+
+    // リアルタイムリスナー設定
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const newTasks = snapshot.docs.map(doc => ({
+        taskId: doc.id,
+        ...doc.data()
+      }));
+      setTasks(newTasks);
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
+
+  return { tasks };
+};
+```
+
+> **Note**: ポーリング不要で、エージェントがFirestoreを更新した瞬間に自動的にフロントエンドに反映されます。
 
 ---
 

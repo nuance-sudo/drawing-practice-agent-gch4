@@ -4,26 +4,85 @@
 認証済みユーザーのみアクセス可能。
 """
 
+import contextlib
+
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 
 from src.auth import AuthenticatedUser, get_current_user
 from src.models.task import (
     CreateReviewRequest,
     ReviewListResponse,
     ReviewTaskResponse,
+    TaskStatus,
 )
 from src.services.task_service import get_task_service
+from src.tools.analysis import analyze_dessin_image
 
 logger = structlog.get_logger()
 
 router = APIRouter(prefix="/reviews", tags=["reviews"])
 
 
+def process_review_task(task_id: str, image_url: str) -> None:
+    """バックグラウンドでレビュータスクを処理
+
+    Args:
+        task_id: タスクID
+        image_url: 分析対象の画像URL
+    """
+    logger.info("process_review_task_started", task_id=task_id)
+    service = get_task_service()
+
+    try:
+        # ステータスをprocessingに更新
+        service.update_task_status(task_id, TaskStatus.PROCESSING)
+
+        # デッサン分析を実行
+        result = analyze_dessin_image(image_url)
+
+        if result.get("status") == "success":
+            analysis = result.get("analysis", {})
+            # 成功時：結果をFirestoreに保存
+            service.update_task_status(
+                task_id,
+                TaskStatus.COMPLETED,
+                feedback=analysis,
+                score=analysis.get("overall_score"),
+                tags=analysis.get("tags"),
+            )
+            logger.info(
+                "process_review_task_completed",
+                task_id=task_id,
+                score=analysis.get("overall_score"),
+            )
+        else:
+            # 失敗時：エラーステータスに更新
+            error_message = result.get("error_message", "分析に失敗しました")
+            service.update_task_status(
+                task_id,
+                TaskStatus.FAILED,
+                error_message=error_message,
+            )
+            logger.error(
+                "process_review_task_failed",
+                task_id=task_id,
+                error=error_message,
+            )
+    except Exception as e:
+        logger.error("process_review_task_error", task_id=task_id, error=str(e))
+        with contextlib.suppress(Exception):
+            service.update_task_status(
+                task_id,
+                TaskStatus.FAILED,
+                error_message=str(e),
+            )
+
+
 @router.get("/upload-url")
 async def get_upload_url(
     content_type: str = Query(..., regex="^image/(jpeg|png)$"),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    _current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> dict[str, str]:
     """アップロード用署名付きURLを取得
 
@@ -43,11 +102,13 @@ async def get_upload_url(
 @router.post("", response_model=ReviewTaskResponse, status_code=201)
 async def create_review(
     request: CreateReviewRequest,
+    background_tasks: BackgroundTasks,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ReviewTaskResponse:
     """審査リクエストを作成
 
     画像URLを受け取り、新規タスクを作成してpending状態で返す。
+    バックグラウンドでエージェントによる分析を開始する。
     user_idは認証済みユーザーから取得する。
     """
     service = get_task_service()
@@ -58,6 +119,9 @@ async def create_review(
         example_image_url=request.example_image_url,
     )
 
+    # バックグラウンドでエージェント分析を開始
+    background_tasks.add_task(process_review_task, task.task_id, task.image_url)
+
     logger.info(
         "review_created",
         task_id=task.task_id,
@@ -65,6 +129,8 @@ async def create_review(
     )
 
     return ReviewTaskResponse.from_task(task)
+
+
 
 
 @router.get("/{task_id}", response_model=ReviewTaskResponse)

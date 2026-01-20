@@ -11,7 +11,8 @@
 | スタイリング | Tailwind CSS | 4.x | ユーティリティCSS |
 | 認証 | Auth.js | 5.x | GitHub OAuth認証 |
 | 状態管理 | Zustand | 5.x | グローバルステート |
-| データフェッチ | SWR | 2.x | キャッシュ・ポーリング |
+| データフェッチ | SWR | 2.x | キャッシュ・API呼び出し |
+| リアルタイムDB | Firebase SDK | 11.x | Firestoreリアルタイム監視 |
 | ホスティング | Firebase Hosting | - | 静的アセット・SSR |
 
 > **参考**: [aws-samples/generative-ai-use-cases](https://github.com/aws-samples/generative-ai-use-cases)
@@ -364,6 +365,7 @@ dev = [
     "next": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "firebase": "^11.0.0",
     "next-auth": "^5.0.0",
     "zustand": "^5.0.0",
     "swr": "^2.3.0",

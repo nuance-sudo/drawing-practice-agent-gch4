@@ -23,7 +23,7 @@ function ReviewContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const id = searchParams.get('id');
-    const { task, isLoading, isError } = useTask(id);
+    const { task, isLoading, error } = useTask(id);
 
     if (!id) return null;
 
@@ -38,7 +38,7 @@ function ReviewContent() {
         );
     }
 
-    if (isError || !task) {
+    if (error || !task) {
         return (
             <div className="min-h-screen grid place-items-center bg-slate-50">
                 <div className="text-center max-w-md mx-auto p-6">
