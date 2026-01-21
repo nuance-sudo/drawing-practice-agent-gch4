@@ -1,15 +1,17 @@
 'use client';
 
-import { useTasks } from '@/hooks/useTasks';
-import { useAuthStore } from '@/stores/auth-store';
 import { Loader2, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import type { ReviewTask } from '@/types/task';
 
-export const TaskList = () => {
-    const { user } = useAuthStore();
-    const { tasks, isLoading, error } = useTasks(user?.uid ?? null);
+type Props = {
+    tasks: ReviewTask[];
+    loading?: boolean;
+    error?: Error | null;
+};
 
-    if (isLoading) {
+export const TaskGrid = ({ tasks, loading, error }: Props) => {
+    if (loading) {
         return (
             <div className="flex justify-center p-12">
                 <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
@@ -29,30 +31,29 @@ export const TaskList = () => {
     if (tasks.length === 0) {
         return (
             <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                <p className="text-slate-500">まだ履歴がありません</p>
+                <p className="text-slate-500">条件に一致する履歴が見つかりませんでした</p>
             </div>
         );
     }
 
     return (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {tasks.map((task) => (
+            {tasks.map((task: ReviewTask) => (
                 <Link
                     key={task.taskId}
                     href={`/review?id=${task.taskId}`}
-                    className="group relative overflow-hidden rounded-2xl bg-white border border-slate-100 shadow-sm transition-all hover:shadow-md hover:border-blue-100"
+                    className="group relative overflow-hidden rounded-2xl bg-white border border-slate-100 shadow-sm transition-all hover:shadow-md hover:border-blue-100 block"
                 >
-                    <div className="aspect-square w-full overflow-hidden bg-slate-100">
+                    <div className="aspect-square w-full overflow-hidden bg-slate-100 relative">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             src={task.imageUrl}
-                            alt="Deddin"
+                            alt="Drawing"
                             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
-                    </div>
-
-                    <div className="absolute top-3 right-3">
-                        <StatusBadge status={task.status} />
+                        <div className="absolute top-3 right-3">
+                            <StatusBadge status={task.status} />
+                        </div>
                     </div>
 
                     <div className="p-4">

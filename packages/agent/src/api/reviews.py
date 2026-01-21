@@ -242,21 +242,48 @@ async def get_review(
 async def list_reviews(
     current_user: AuthenticatedUser = Depends(get_current_user),
     limit: int = Query(default=20, ge=1, le=100, description="取得件数の上限"),
+    start_date: str | None = Query(default=None, description="開始日 (YYYY-MM-DD)", regex=r"^\d{4}-\d{2}-\d{2}$"),
+    end_date: str | None = Query(default=None, description="終了日 (YYYY-MM-DD)", regex=r"^\d{4}-\d{2}-\d{2}$"),
+    status: str | None = Query(default=None, description="ステータス"),
+    tag: str | None = Query(default=None, description="タグ"),
 ) -> ReviewListResponse:
     """審査タスク一覧を取得
 
     認証済みユーザーのタスクのみ取得する。
+    検索条件が指定された場合はフィルタリングを行う。
 
     Args:
         limit: 取得件数の上限（1-100）
+        start_date: 開始日
+        end_date: 終了日
+        status: ステータス
+        tag: タグ
 
     Returns:
         審査タスクの一覧
     """
     service = get_task_service()
+    
+    # 日付文字列をdatetimeに変換
+    from datetime import datetime
+    start_dt = None
+    if start_date:
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        
+    end_dt = None
+    if end_date:
+        # 日付の終わり（23:59:59.999999）まで含めるため
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59, microsecond=999999)
 
     # 認証済みユーザーのタスクのみ取得
-    tasks = service.list_tasks(user_id=current_user.user_id, limit=limit)
+    tasks = service.list_tasks(
+        user_id=current_user.user_id, 
+        limit=limit,
+        start_date=start_dt,
+        end_date=end_dt,
+        status=status,
+        tag=tag
+    )
 
     return ReviewListResponse(
         tasks=[ReviewTaskResponse.from_task(task) for task in tasks],

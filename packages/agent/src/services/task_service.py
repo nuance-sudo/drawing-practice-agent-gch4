@@ -102,21 +102,39 @@ class TaskService:
         self,
         user_id: str,
         limit: int = 20,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        status: str | None = None,
+        tag: str | None = None,
     ) -> list[ReviewTask]:
         """ユーザーのタスク一覧を取得
 
         Args:
             user_id: ユーザーID
             limit: 取得件数の上限
+            start_date: 検索開始日時
+            end_date: 検索終了日時
+            status: ステータスフィルタ
+            tag: タグフィルタ
 
         Returns:
             ReviewTaskのリスト
         """
-        query = (
-            self._collection.where("user_id", "==", user_id)
-            .order_by("created_at", direction=firestore.Query.DESCENDING)
-            .limit(limit)
-        )
+        query = self._collection.where("user_id", "==", user_id)
+
+        if status:
+            query = query.where("status", "==", status)
+        
+        if tag:
+            query = query.where("tags", "array_contains", tag)
+            
+        if start_date:
+            query = query.where("created_at", ">=", start_date)
+            
+        if end_date:
+            query = query.where("created_at", "<=", end_date)
+
+        query = query.order_by("created_at", direction=firestore.Query.DESCENDING).limit(limit)
 
         docs: Sequence[firestore.DocumentSnapshot] = query.stream()
         tasks: list[ReviewTask] = []
