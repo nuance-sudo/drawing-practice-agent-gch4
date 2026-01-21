@@ -1,11 +1,13 @@
 'use client';
 
 import { useTasks } from '@/hooks/useTasks';
+import { useAuthStore } from '@/stores/auth-store';
 import { Loader2, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
 export const TaskList = () => {
-    const { tasks, isLoading, isError } = useTasks();
+    const { user } = useAuthStore();
+    const { tasks, isLoading, error } = useTasks(user?.uid ?? null);
 
     if (isLoading) {
         return (
@@ -15,7 +17,7 @@ export const TaskList = () => {
         );
     }
 
-    if (isError) {
+    if (error) {
         return (
             <div className="rounded-xl bg-red-50 p-4 text-red-600 flex items-center gap-2">
                 <AlertCircle className="h-5 w-5" />

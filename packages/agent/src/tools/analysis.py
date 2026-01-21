@@ -19,6 +19,35 @@ from src.utils.validation import sanitize_for_storage, validate_image_url
 logger = structlog.get_logger()
 
 
+def _convert_to_gcs_uri(url: str) -> str:
+    """HTTPS URLをGCS URI形式に変換
+
+    https://storage.googleapis.com/bucket-name/path/to/file
+    → gs://bucket-name/path/to/file
+
+    Args:
+        url: 検証済みのURL
+
+    Returns:
+        gs://形式のURI（変換不可の場合は元のURLをそのまま返す）
+    """
+    if url.startswith("gs://"):
+        return url
+
+    # storage.googleapis.com 形式の場合
+    if url.startswith("https://storage.googleapis.com/"):
+        # https://storage.googleapis.com/bucket/path → gs://bucket/path
+        path = url.replace("https://storage.googleapis.com/", "")
+        return f"gs://{path}"
+
+    # storage.cloud.google.com 形式の場合
+    if url.startswith("https://storage.cloud.google.com/"):
+        path = url.replace("https://storage.cloud.google.com/", "")
+        return f"gs://{path}"
+
+    # 変換できない場合は元のURLを返す
+    return url
+
 def analyze_dessin_image(image_url: str) -> dict[str, object]:
     """デッサン画像を分析し、フィードバックを返す
 
@@ -48,6 +77,9 @@ def analyze_dessin_image(image_url: str) -> dict[str, object]:
         # URL検証（SSRF対策）
         validated_url = validate_image_url(image_url)
 
+        # https:// URLをgs:// URIに変換（Vertex AIがGCSに直接アクセスできるように）
+        gcs_uri = _convert_to_gcs_uri(validated_url)
+
         # Gemini クライアント初期化
         client = genai.Client(
             vertexai=True,
@@ -55,10 +87,15 @@ def analyze_dessin_image(image_url: str) -> dict[str, object]:
             location=settings.gcp_region,
         )
 
-        # 画像をURLから取得してPart作成
+        # MIMEタイプを判定
+        mime_type = "image/jpeg"
+        if gcs_uri.lower().endswith(".png"):
+            mime_type = "image/png"
+
+        # 画像をGCS URIから取得してPart作成
         image_part = types.Part.from_uri(
-            file_uri=validated_url,
-            mime_type="image/jpeg",
+            file_uri=gcs_uri,
+            mime_type=mime_type,
         )
 
         # 分析リクエスト

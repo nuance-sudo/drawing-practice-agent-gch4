@@ -31,20 +31,6 @@ async function fetchWithAuth(path: string, options: RequestInit = {}) {
 }
 
 export const api = {
-    getTasks: async (): Promise<ReviewTask[]> => {
-        const data = await fetchWithAuth('/reviews');
-        return data.tasks; // Response wrapper { tasks: [], total_count }
-    },
-
-    getTask: async (taskId: string): Promise<ReviewTask | undefined> => {
-        try {
-            return await fetchWithAuth(`/reviews/${taskId}`);
-        } catch (e) {
-            if (e instanceof Error && e.message.includes('404')) return undefined;
-            throw e;
-        }
-    },
-
     uploadImage: async (file: File): Promise<ReviewTask> => {
         // 1. Get Signed URL
         const contentType = file.type;
@@ -73,3 +59,4 @@ export const api = {
         });
     },
 };
+
