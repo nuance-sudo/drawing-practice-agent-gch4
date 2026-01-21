@@ -16,6 +16,9 @@ from src.models.task import (
     ReviewTaskResponse,
     TaskStatus,
 )
+from src.services.feedback_service import get_feedback_service
+from src.services.feedback_service import get_feedback_service
+from src.services.rank_service import get_rank_service
 from src.services.task_service import get_task_service
 from src.tools.analysis import analyze_dessin_image
 
@@ -24,11 +27,12 @@ logger = structlog.get_logger()
 router = APIRouter(prefix="/reviews", tags=["reviews"])
 
 
-def process_review_task(task_id: str, image_url: str) -> None:
+def process_review_task(task_id: str, user_id: str, image_url: str) -> None:
     """バックグラウンドでレビュータスクを処理
 
     Args:
         task_id: タスクID
+        user_id: ユーザーID（ランク更新用）
         image_url: 分析対象の画像URL
     """
     logger.info("process_review_task_started", task_id=task_id)
@@ -38,8 +42,19 @@ def process_review_task(task_id: str, image_url: str) -> None:
         # ステータスをprocessingに更新
         service.update_task_status(task_id, TaskStatus.PROCESSING)
 
+        # ランク取得（分析前に現在のランクを取得してプロンプトに反映）
+        from src.models.rank import Rank
+        current_rank_label = Rank.KYU_10.label
+        try:
+            rank_service = get_rank_service()
+            user_rank_info = rank_service.get_user_rank(user_id)
+            if user_rank_info:
+                current_rank_label = user_rank_info.current_rank.label
+        except Exception as e:
+            logger.warn("rank_fetch_failed", user_id=user_id, error=str(e))
+
         # デッサン分析を実行
-        result = analyze_dessin_image(image_url)
+        result = analyze_dessin_image(image_url, rank_label=current_rank_label)
 
         if result.get("status") == "success":
             analysis = result.get("analysis", {})
@@ -55,6 +70,56 @@ def process_review_task(task_id: str, image_url: str) -> None:
                 "process_review_task_completed",
                 task_id=task_id,
                 score=analysis.get("overall_score"),
+            )
+
+            # ランク更新
+            user_rank = None
+            try:
+                rank_service = get_rank_service()
+                user_rank = rank_service.update_user_rank(
+                    user_id=user_id,
+                    score=analysis.get("overall_score"),
+                    task_id=task_id
+                )
+            except Exception as e:
+                # ランク更新失敗してもタスク自体は成功とする
+                logger.error("rank_update_failed", task_id=task_id, error=str(e))
+                # ランク取得失敗時のフォールバック: ランク更新が失敗しても分析データは保存したい
+                # UserRankオブジェクトがないとフィードバック生成できないため、一時的に取得を試みるか、デフォルト値を使う
+                # ここでは単純に処理続行のため、仮のランクを使用（本来はリトライなどが必要）
+                from src.models.rank import Rank, UserRank
+                user_rank = UserRank(
+                    user_id=user_id,
+                    current_rank=Rank.KYU_10,
+                    current_score=analysis.get("overall_score"),
+                )
+
+            # フィードバック生成 (Markdown含む)
+            feedback_service = get_feedback_service()
+            # DessinAnalysisオブジェクトに変換（辞書から）
+            from src.models.feedback import DessinAnalysis
+            dessin_analysis = DessinAnalysis(**analysis)
+            
+            feedback_response = feedback_service.generate_feedback(
+                analysis=dessin_analysis,
+                rank=user_rank.current_rank
+            )
+
+            feedback_data = dessin_analysis.model_dump()
+            feedback_data["summary"] = feedback_response.summary
+            feedback_data["detailed_feedback"] = feedback_response.detailed_feedback
+
+            service.update_task_status(
+                task_id,
+                TaskStatus.COMPLETED,
+                feedback=feedback_data,
+                score=dessin_analysis.overall_score,
+                tags=dessin_analysis.tags,
+            )
+            logger.info(
+                "process_review_task_completed",
+                task_id=task_id,
+                score=dessin_analysis.overall_score,
             )
         else:
             # 失敗時：エラーステータスに更新
@@ -120,7 +185,12 @@ async def create_review(
     )
 
     # バックグラウンドでエージェント分析を開始
-    background_tasks.add_task(process_review_task, task.task_id, task.image_url)
+    background_tasks.add_task(
+        process_review_task,
+        task_id=task.task_id,
+        user_id=task.user_id,
+        image_url=task.image_url,
+    )
 
     logger.info(
         "review_created",

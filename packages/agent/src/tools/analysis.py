@@ -48,7 +48,7 @@ def _convert_to_gcs_uri(url: str) -> str:
     # 変換できない場合は元のURLを返す
     return url
 
-def analyze_dessin_image(image_url: str) -> dict[str, object]:
+def analyze_dessin_image(image_url: str, rank_label: str = "初学者") -> dict[str, object]:
     """デッサン画像を分析し、フィードバックを返す
 
     鉛筆デッサン画像を分析し、プロポーション、陰影、質感、線の質の観点から
@@ -56,6 +56,8 @@ def analyze_dessin_image(image_url: str) -> dict[str, object]:
 
     Args:
         image_url: 分析対象の画像URL（Cloud StorageまたはCloud CDN経由）
+        rank_label: ユーザーの現在のランク（例: "10級", "初段"）。プロンプトに含めることで、ランクに応じた評価を促す。
+                    不正な値の場合はデフォルト（10級）にフォールバックします。
 
     Returns:
         分析結果を含む辞書。以下のキーを含む:
@@ -65,13 +67,24 @@ def analyze_dessin_image(image_url: str) -> dict[str, object]:
         - error_message: エラー時のメッセージ（エラー時のみ）
 
     Example:
-        >>> result = analyze_dessin_image("https://storage.googleapis.com/.../drawing.jpg")
+        >>> result = analyze_dessin_image("https://storage.googleapis.com/.../drawing.jpg", "5級")
         >>> print(result["status"])
         "success"
         >>> print(result["analysis"]["overall_score"])
         75.5
     """
-    logger.info("analyze_dessin_image_started", image_url=image_url[:100])
+    logger.info("analyze_dessin_image_started", image_url=image_url[:100], rank=rank_label)
+
+    # ランクのホワイトリスト検証（Prompt Injection対策）
+    from src.models.rank import Rank
+    valid_ranks = {r.label for r in Rank}
+    if rank_label not in valid_ranks:
+        logger.warning(
+            "invalid_rank_label_fallback",
+            original_label=rank_label,
+            fallback=Rank.KYU_10.label
+        )
+        rank_label = Rank.KYU_10.label
 
     try:
         # URL検証（SSRF対策）
@@ -98,6 +111,9 @@ def analyze_dessin_image(image_url: str) -> dict[str, object]:
             mime_type=mime_type,
         )
 
+        # プロンプトにランク情報を注入
+        user_prompt = f"ユーザーの現在のランク: {rank_label}\n\n{DESSIN_ANALYSIS_USER_PROMPT}"
+
         # 分析リクエスト
         response = client.models.generate_content(
             model=settings.gemini_model,
@@ -105,7 +121,7 @@ def analyze_dessin_image(image_url: str) -> dict[str, object]:
                 types.Content(
                     role="user",
                     parts=[
-                        types.Part.from_text(text=DESSIN_ANALYSIS_USER_PROMPT),
+                        types.Part.from_text(text=user_prompt),
                         image_part,
                     ],
                 ),

@@ -2,6 +2,7 @@
 
 import { Suspense } from 'react';
 import { useTask } from '@/hooks/useTasks';
+import { useRank } from '@/hooks/useRank';
 import { FeedbackDisplay } from '@/components/features/review/FeedbackDisplay';
 import { Button } from '@/components/common/Button';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -24,6 +25,7 @@ function ReviewContent() {
     const router = useRouter();
     const id = searchParams.get('id');
     const { task, isLoading, error } = useTask(id);
+    const { rank } = useRank();
 
     if (!id) return null;
 
@@ -101,7 +103,7 @@ function ReviewContent() {
                         {task.status === 'completed' && task.feedback ? (
                             <FeedbackDisplay
                                 feedback={task.feedback}
-                                rank="7級" // Mock rank for now
+                                rank={rank?.label ?? '10級'}
                             />
                         ) : (
                             <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 text-center">
