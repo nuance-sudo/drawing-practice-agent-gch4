@@ -13,7 +13,7 @@ import {
     DocumentSnapshot,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { ReviewTask, TaskStatus } from '@/types/task';
+import type { ReviewTask, TaskStatus, TaskFilters } from '@/types/task';
 
 /**
  * Firestoreのドキュメントデータを ReviewTask 型に変換
@@ -94,12 +94,15 @@ type SingleTaskState = {
  * Firestoreからタスクをリアルタイム監視するカスタムフック
  * エージェントがタスクステータスを更新した瞬間にUIに反映される
  */
-export const useTasks = (userId: string | null): TasksState => {
+export const useTasks = (userId: string | null, filters?: TaskFilters): TasksState => {
     const stateRef = useRef<TasksState>({
         tasks: [],
         isLoading: !!userId,
         error: null,
     });
+    // JSON.stringify to stabilize filters object for dependency array
+    const filtersKey = JSON.stringify(filters);
+
     const listenersRef = useRef(new Set<() => void>());
 
     const subscribe = useCallback((callback: () => void) => {
@@ -123,31 +126,68 @@ export const useTasks = (userId: string | null): TasksState => {
         stateRef.current = { ...stateRef.current, isLoading: true, error: null };
         notifyListeners();
 
-        const q = query(
-            collection(db, 'review_tasks'),
-            where('user_id', '==', userId),
-            orderBy('created_at', 'desc')
-        );
+        try {
+            let q = query(
+                collection(db, 'review_tasks'),
+                where('user_id', '==', userId)
+            );
 
-        const unsubscribe = onSnapshot(
-            q,
-            (snapshot: QuerySnapshot<DocumentData>) => {
-                const newTasks: ReviewTask[] = snapshot.docs.map((docSnapshot) =>
-                    mapDocToTask(docSnapshot as DocumentSnapshot<DocumentData>)
-                );
-                stateRef.current = { tasks: newTasks, isLoading: false, error: null };
-                notifyListeners();
-            },
-            (err) => {
-                console.error('Firestore realtime listener error:', err);
-                stateRef.current = { tasks: [], isLoading: false, error: err };
-                notifyListeners();
+            // フィルタの適用
+            if (filters?.status && filters.status !== 'all') {
+                q = query(q, where('status', '==', filters.status));
             }
-        );
 
-        return () => unsubscribe();
-    }, [userId, notifyListeners]);
+            if (filters?.tag) {
+                q = query(q, where('tags', 'array-contains', filters.tag));
+            }
 
+            if (filters?.startDate) {
+                // 日付の開始（00:00:00）
+                const start = new Date(filters.startDate);
+                start.setHours(0, 0, 0, 0);
+                q = query(q, where('created_at', '>=', start));
+            }
+
+            if (filters?.endDate) {
+                // 日付の終了（23:59:59）
+                const end = new Date(filters.endDate);
+                end.setHours(23, 59, 59, 999);
+                q = query(q, where('created_at', '<=', end));
+            }
+
+            // オーダリング
+            // 不等号フィルタ（範囲指定）を使用した場合、そのフィールドで最初にソートする必要がある
+            if (filters?.startDate || filters?.endDate) {
+                q = query(q, orderBy('created_at', 'desc'));
+            } else {
+                // デフォルトは作成日時の降順
+                q = query(q, orderBy('created_at', 'desc'));
+            }
+
+            const unsubscribe = onSnapshot(
+                q,
+                (snapshot: QuerySnapshot<DocumentData>) => {
+                    const newTasks: ReviewTask[] = snapshot.docs.map((docSnapshot) =>
+                        mapDocToTask(docSnapshot as DocumentSnapshot<DocumentData>)
+                    );
+                    stateRef.current = { tasks: newTasks, isLoading: false, error: null };
+                    notifyListeners();
+                },
+                (err) => {
+                    console.error('Firestore realtime listener error:', err);
+                    stateRef.current = { tasks: [], isLoading: false, error: err };
+                    notifyListeners();
+                }
+            );
+
+            return () => unsubscribe();
+        } catch (error) {
+            console.error('Error constructing query:', error);
+            stateRef.current = { tasks: [], isLoading: false, error: error as Error };
+            notifyListeners();
+            return () => { };
+        }
+    }, [userId, notifyListeners, filtersKey]); // filtersKey uses JSON.stringify(filters)
     return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 };
 

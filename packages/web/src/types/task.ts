@@ -29,3 +29,10 @@ export type CategoryFeedback = {
   score: number;
   comments: string[];
 };
+
+export type TaskFilters = {
+  startDate?: Date;
+  endDate?: Date;
+  status?: TaskStatus | 'all';
+  tag?: string;
+};
