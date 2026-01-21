@@ -57,6 +57,7 @@ def analyze_dessin_image(image_url: str, rank_label: str = "初学者") -> dict[
     Args:
         image_url: 分析対象の画像URL（Cloud StorageまたはCloud CDN経由）
         rank_label: ユーザーの現在のランク（例: "10級", "初段"）。プロンプトに含めることで、ランクに応じた評価を促す。
+                    不正な値の場合はデフォルト（10級）にフォールバックします。
 
     Returns:
         分析結果を含む辞書。以下のキーを含む:
@@ -73,6 +74,17 @@ def analyze_dessin_image(image_url: str, rank_label: str = "初学者") -> dict[
         75.5
     """
     logger.info("analyze_dessin_image_started", image_url=image_url[:100], rank=rank_label)
+
+    # ランクのホワイトリスト検証（Prompt Injection対策）
+    from src.models.rank import Rank
+    valid_ranks = {r.label for r in Rank}
+    if rank_label not in valid_ranks:
+        logger.warning(
+            "invalid_rank_label_fallback",
+            original_label=rank_label,
+            fallback=Rank.KYU_10.label
+        )
+        rank_label = Rank.KYU_10.label
 
     try:
         # URL検証（SSRF対策）

@@ -43,7 +43,8 @@ def process_review_task(task_id: str, user_id: str, image_url: str) -> None:
         service.update_task_status(task_id, TaskStatus.PROCESSING)
 
         # ランク取得（分析前に現在のランクを取得してプロンプトに反映）
-        current_rank_label = "初学者"
+        from src.models.rank import Rank
+        current_rank_label = Rank.KYU_10.label
         try:
             rank_service = get_rank_service()
             user_rank_info = rank_service.get_user_rank(user_id)
