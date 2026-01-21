@@ -31,109 +31,46 @@ Cloud Runサービスに設定されている環境変数：
 ---
 
 ## デプロイ手順
-
-### 1. gcloud CLI の認証
-
-```bash
-gcloud auth login
-gcloud config set project <YOUR_PROJECT_ID>
-gcloud config set run/region asia-northeast1
-```
-
-### 2. Artifact Registry へのDocker認証
-
-```bash
-gcloud auth configure-docker asia-northeast1-docker.pkg.dev
-```
-
-### 3. Dockerイメージのビルド・プッシュ
-
-> [!CAUTION]
-> **ARMアーキテクチャでのビルド時の注意**
->
-> ARM64マシン（Apple Silicon Mac、AWS Graviton等）でビルドしたイメージは、
-> Cloud Run（AMD64）では動作しません（`exec format error`）。
->
-> **解決策**: Cloud Build を使用してビルドすることで、AMD64イメージが生成されます。
-
-```bash
-cd packages/agent
-
-# Cloud Build を使用（推奨）
-gcloud builds submit \
-  --tag asia-northeast1-docker.pkg.dev/<YOUR_PROJECT_ID>/drawing-practice-agent/agent:latest .
-
-# または、AMD64でビルドできる環境がある場合
-# docker buildx build --platform linux/amd64 \
-#   -t asia-northeast1-docker.pkg.dev/<YOUR_PROJECT_ID>/drawing-practice-agent/agent:latest . \
-#   --push
-```
-
-### 4. Cloud Run へのデプロイ
-
-```bash
-gcloud run deploy dessin-coaching-agent \
-  --image asia-northeast1-docker.pkg.dev/<YOUR_PROJECT_ID>/drawing-practice-agent/agent:latest \
-  --platform managed \
-  --region asia-northeast1 \
-  --allow-unauthenticated \
-  --memory 1Gi \
-  --timeout 300 \
-  --set-env-vars "GCP_PROJECT_ID=<YOUR_PROJECT_ID>,GCP_REGION=asia-northeast1,FIRESTORE_DATABASE=(default),STORAGE_BUCKET=<YOUR_BUCKET_NAME>,DEBUG=false,LOG_LEVEL=INFO"
-```
-
-### 5. デプロイ確認
-
-```bash
-# サービスURL取得
-gcloud run services describe dessin-coaching-agent --format='value(status.url)'
-
-# ヘルスチェック
-curl <SERVICE_URL>/health
-# 期待されるレスポンス: {"status":"healthy"}
-```
-
----
-
-## 初回セットアップ（リソースが存在しない場合）
-
-### Artifact Registry リポジトリ作成
-
-```bash
-gcloud artifacts repositories create drawing-practice-agent \
-  --repository-format=docker \
-  --location=asia-northeast1 \
-  --description="Drawing Practice Agent Docker images"
-```
-
-### Cloud Storage バケット作成
-
-```bash
-gcloud storage buckets create gs://<YOUR_BUCKET_NAME> \
-  --location=asia-northeast1 \
-  --uniform-bucket-level-access
-```
-
-### Firestore データベース作成
-
-```bash
-gcloud firestore databases create \
-  --location=asia-northeast1 \
-  --type=firestore-native
-```
-
----
-
-## トラブルシューティング
-
-### `exec format error` が発生する
-
-ARM64マシンでビルドしたイメージをCloud Runにデプロイした際に発生します。
-**Cloud Build** を使用してビルドしてください（上記「Dockerイメージのビルド・プッシュ」参照）。
-
-### コンテナがポート8080でリッスンしない
-
-Cloud Runのログを確認してください：
-```bash
-gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=dessin-coaching-agent" --limit=30
-```
+ 
+ ### 1. Web アプリ (FrontEnd)
+ Firebase Hosting にデプロイします。
+ 
+ ```bash
+ # 1. ビルド
+ cd packages/web
+ npm run build
+ 
+ # 2. ルートに戻ってデプロイ
+ cd ../..
+ firebase deploy --only hosting --project drawing-practice-agent
+ ```
+ 
+ ### 2. Agent (BackEnd)
+ Container Registry (Artifact Registry) にビルドして Cloud Run にデプロイします。
+ ※ `packages/agent` ディレクトリで実行してください。
+ 
+ ```bash
+ cd packages/agent
+ 
+ # 1. ビルド & Push
+ gcloud builds submit --region=asia-northeast1 --tag asia-northeast1-docker.pkg.dev/drawing-practice-agent/drawing-practice-agent/agent:latest --project=drawing-practice-agent .
+ 
+ # 2. デプロイ
+ gcloud run deploy dessin-coaching-agent --image asia-northeast1-docker.pkg.dev/drawing-practice-agent/drawing-practice-agent/agent:latest --platform managed --region asia-northeast1 --project=drawing-practice-agent
+ ```
+ 
+ ---
+ 
+ ## トラブルシューティング
+ 
+ ### `exec format error` が発生する
+ 
+ ARM64マシンでビルドしたイメージをCloud Runにデプロイした際に発生します。
+ 上記の `gcloud builds submit` コマンドを使用することで、Cloud Build上で適切なプラットフォーム向けのビルドが行われるため、この問題を回避できます。
+ 
+ ### コンテナがポート8080でリッスンしない
+ 
+ Cloud Runのログを確認してください：
+ ```bash
+ gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=dessin-coaching-agent" --limit=30
+ ```

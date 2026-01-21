@@ -1,40 +1,43 @@
 """ランクモデル定義"""
 
-from enum import Enum
+from enum import IntEnum
 from datetime import datetime
+from typing import List
 
 from pydantic import BaseModel, Field
 
 
-class Rank(str, Enum):
-    """デッサンスキルランク"""
-    BRONZE = "Bronze"
-    SILVER = "Silver"
-    GOLD = "Gold"
-    PLATINUM = "Platinum"
-    DIAMOND = "Diamond"
+class Rank(IntEnum):
+    """デッサンスキルランク (1-15)"""
+    KYU_10 = 1
+    KYU_9 = 2
+    KYU_8 = 3
+    KYU_7 = 4
+    KYU_6 = 5
+    KYU_5 = 6
+    KYU_4 = 7
+    KYU_3 = 8
+    KYU_2 = 9
+    KYU_1 = 10
+    DAN_1 = 11
+    DAN_2 = 12
+    DAN_3 = 13
+    SHIHAN_DAI = 14
+    SHIHAN = 15
+
+    @property
+    def label(self) -> str:
+        """表示用ラベル"""
+        if self.value <= 10:
+            return f"{11 - self.value}級"
+        elif self.value <= 13:
+            return f"{self.value - 10}段" # Rank.DAN_1 is 11, so 11-10=1段
+        elif self.value == 14:
+            return "師範代"
+        else:
+            return "師範"
 
 
-class RankRange(BaseModel):
-    """ランクごとのスコア範囲定義"""
-    rank: Rank
-    min_score: int
-    max_score: int
-
-
-# ランク定義
-# Bronze: 0-30
-# Silver: 31-50
-# Gold: 51-70
-# Platinum: 71-85
-# Diamond: 86-100
-RANK_RANGES = [
-    RankRange(rank=Rank.BRONZE, min_score=0, max_score=30),
-    RankRange(rank=Rank.SILVER, min_score=31, max_score=50),
-    RankRange(rank=Rank.GOLD, min_score=51, max_score=70),
-    RankRange(rank=Rank.PLATINUM, min_score=71, max_score=85),
-    RankRange(rank=Rank.DIAMOND, min_score=86, max_score=100),
-]
 
 
 class UserRank(BaseModel):
@@ -42,6 +45,8 @@ class UserRank(BaseModel):
     user_id: str = Field(..., description="ユーザーID")
     current_rank: Rank = Field(..., description="現在のランク")
     current_score: float = Field(..., description="現在のスコア（最新のデッサン総合スコア）")
+    total_submissions: int = Field(0, description="総提出回数")
+    high_scores: List[float] = Field(default_factory=list, description="80点以上のスコア履歴")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新日時")
 
 
