@@ -16,6 +16,7 @@ from src.models.task import (
     ReviewTaskResponse,
     TaskStatus,
 )
+from src.services.rank_service import get_rank_service
 from src.services.task_service import get_task_service
 from src.tools.analysis import analyze_dessin_image
 
@@ -24,11 +25,12 @@ logger = structlog.get_logger()
 router = APIRouter(prefix="/reviews", tags=["reviews"])
 
 
-def process_review_task(task_id: str, image_url: str) -> None:
+def process_review_task(task_id: str, user_id: str, image_url: str) -> None:
     """バックグラウンドでレビュータスクを処理
 
     Args:
         task_id: タスクID
+        user_id: ユーザーID（ランク更新用）
         image_url: 分析対象の画像URL
     """
     logger.info("process_review_task_started", task_id=task_id)
@@ -56,6 +58,18 @@ def process_review_task(task_id: str, image_url: str) -> None:
                 task_id=task_id,
                 score=analysis.get("overall_score"),
             )
+
+            # ランク更新
+            try:
+                rank_service = get_rank_service()
+                rank_service.update_user_rank(
+                    user_id=user_id,
+                    score=analysis.get("overall_score"),
+                    task_id=task_id
+                )
+            except Exception as e:
+                # ランク更新失敗してもタスク自体は成功とする
+                logger.error("rank_update_failed", task_id=task_id, error=str(e))
         else:
             # 失敗時：エラーステータスに更新
             error_message = result.get("error_message", "分析に失敗しました")
@@ -120,7 +134,12 @@ async def create_review(
     )
 
     # バックグラウンドでエージェント分析を開始
-    background_tasks.add_task(process_review_task, task.task_id, task.image_url)
+    background_tasks.add_task(
+        process_review_task,
+        task_id=task.task_id,
+        user_id=task.user_id,
+        image_url=task.image_url,
+    )
 
     logger.info(
         "review_created",
