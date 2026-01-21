@@ -19,8 +19,13 @@ class Settings(BaseSettings):
     firestore_database: str = "(default)"
 
     # Cloud Storage設定
-    gcs_bucket_name: str = ""  # gs://スキームで許可するバケット名
+    storage_bucket: str = ""  # Cloud Storageバケット名
     cdn_base_url: str = ""
+
+    # 画像生成設定
+    image_generation_enabled: bool = True
+    image_generation_max_retries: int = 3
+    image_generation_timeout: int = 180  # 3分
 
     # Gemini設定
     gemini_model: str = "gemini-2.5-flash"

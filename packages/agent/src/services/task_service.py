@@ -154,6 +154,7 @@ class TaskService:
         score: float | None = None,
         tags: list[str] | None = None,
         error_message: str | None = None,
+        example_image_url: str | None = None,
     ) -> ReviewTask:
         """タスクステータスを更新
 
@@ -164,6 +165,7 @@ class TaskService:
             score: 総合スコア
             tags: モチーフタグ
             error_message: エラーメッセージ
+            example_image_url: お手本画像のURL
 
         Returns:
             更新されたReviewTask
@@ -191,6 +193,8 @@ class TaskService:
             update_data["tags"] = tags
         if error_message is not None:
             update_data["error_message"] = error_message
+        if example_image_url is not None:
+            update_data["example_image_url"] = example_image_url
 
         doc_ref.update(update_data)
 
