@@ -98,7 +98,7 @@ Ensure the drawing exhibits the technical standards expected at {target_rank} le
         """初期化"""
         self._gemini_service = get_gemini_service()
         self._storage_client = storage.Client(project=settings.gcp_project_id)
-        self._bucket = self._storage_client.bucket(settings.storage_bucket)
+        self._bucket = self._storage_client.bucket(settings.gcs_bucket_name)
 
     def get_target_rank(self, current_rank: Rank) -> Rank:
         """現在のランクからワンランク上のターゲットランクを取得
@@ -414,8 +414,9 @@ Ensure the drawing exhibits the technical standards expected at {target_rank} le
             }
             blob.patch()
             
-            # CDN URLを構築
-            cdn_url = f"{settings.cdn_base_url}/{file_path}"
+            base_url = f"https://storage.googleapis.com/{settings.gcs_bucket_name}"
+            
+            cdn_url = f"{base_url}/{file_path}"
             
             logger.debug(
                 "image_saved_to_storage",

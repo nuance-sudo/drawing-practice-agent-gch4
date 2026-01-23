@@ -19,7 +19,7 @@ logger = structlog.get_logger()
 
 # テスト用の画像URL（公開GCSバケット）
 TEST_IMAGE_URL = (
-    f"https://storage.googleapis.com/{settings.storage_bucket}/"
+    f"https://storage.googleapis.com/{settings.gcs_bucket_name}/"
     "PXL_20260115_155656989.jpg"
 )
 

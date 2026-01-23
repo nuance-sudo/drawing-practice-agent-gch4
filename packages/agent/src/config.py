@@ -1,8 +1,21 @@
 """アプリケーション設定"""
 
 from functools import lru_cache
+from typing import Annotated
 
-from pydantic_settings import BaseSettings
+from pydantic import BeforeValidator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def parse_cors_origins(v: str | list[str]) -> list[str]:
+    """カンマ区切りの文字列をリストに変換"""
+    if isinstance(v, str) and not v.startswith("["):
+        return [i.strip() for i in v.split(",") if i.strip()]
+    elif isinstance(v, list):
+        return v
+    # JSON配列形式の文字列の場合のフォールバック等はPydanticに任せるかここで処理
+    # 今回はカンマ区切り文字列のサポートが主目的
+    return v  # type: ignore  # Pydanticが後続のバリデーションで処理することを期待
 
 
 class Settings(BaseSettings):
@@ -10,6 +23,12 @@ class Settings(BaseSettings):
 
     環境変数から設定を読み込む。
     """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     # GCP設定
     gcp_project_id: str = ""
@@ -19,7 +38,7 @@ class Settings(BaseSettings):
     firestore_database: str = "(default)"
 
     # Cloud Storage設定
-    storage_bucket: str = ""  # Cloud Storageバケット名
+    gcs_bucket_name: str = ""  # Cloud Storageバケット名
     cdn_base_url: str = ""
 
     # 画像生成設定
@@ -43,16 +62,13 @@ class Settings(BaseSettings):
     auth_secret: str = ""  # JWT署名用シークレット
 
     # CORS設定
-    cors_origins: list[str] = [
+    # pydantic-settingsがJSONパースを試みて失敗するのを防ぐため、strも許容する型定義にする
+    cors_origins: Annotated[list[str] | str, BeforeValidator(parse_cors_origins)] = [
         "http://localhost:3000",
         "http://localhost:5173",
         "https://drawing-practice-agent.web.app",
         "https://drawing-practice-agent.firebaseapp.com",
     ]
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 
 @lru_cache
