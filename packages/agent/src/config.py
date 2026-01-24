@@ -41,14 +41,11 @@ class Settings(BaseSettings):
     gcs_bucket_name: str = ""  # Cloud Storageバケット名
     cdn_base_url: str = ""
 
-    # 画像生成設定
-    image_generation_enabled: bool = True
-    image_generation_max_retries: int = 3
-    image_generation_timeout: int = 180  # 3分
+    image_generation_function_url: str = ""  # Cloud Run Function URL
 
     # Gemini設定
     gemini_model: str = "gemini-2.5-flash"
-    gemini_image_model: str = "gemini-2.5-flash-image"
+
     gemini_max_output_tokens: int = 32000
     gemini_temperature: float = 1.0
     gemini_thinking_budget_tokens: int = 8192

@@ -61,7 +61,7 @@ async def process_review_task(task_id: str, user_id: str, image_url: str) -> Non
             # 成功時：結果をFirestoreに保存
             service.update_task_status(
                 task_id,
-                TaskStatus.COMPLETED,
+                TaskStatus.PROCESSING,
                 feedback=analysis,
                 score=analysis.get("overall_score"),
                 tags=analysis.get("tags"),
@@ -118,52 +118,34 @@ async def process_review_task(task_id: str, user_id: str, image_url: str) -> Non
                 tags=dessin_analysis.tags,
             )
 
-            # お手本画像生成（非同期処理）
-            example_image_url = None
+            # お手本画像生成（Cloud Function呼び出し）
             try:
-                logger.info("example_image_generation_started", task_id=task_id)
+                logger.info("example_image_generation_request_started", task_id=task_id)
                 image_generation_service = get_image_generation_service()
                 
-                example_image_url = await image_generation_service.generate_example_image(
+                await image_generation_service.generate_example_image(
+                    task_id=task_id,
                     original_image_url=image_url,
                     analysis=dessin_analysis,
                     user_rank=user_rank,
                     motif_tags=dessin_analysis.tags
                 )
                 
-                if example_image_url:
-                    logger.info("example_image_generation_completed", 
-                              task_id=task_id, 
-                              example_image_url=example_image_url)
-                else:
-                    logger.warning("example_image_generation_failed", task_id=task_id)
+                logger.info("example_image_generation_request_completed", task_id=task_id)
+                # Cloud Functionからの完了通知待ちのため、ここではステータスを更新しない
                     
             except Exception as e:
-                logger.error("example_image_generation_error", 
+                logger.error("example_image_generation_request_failed", 
                            task_id=task_id, 
                            error=str(e))
-                # 画像生成失敗でもタスクは完了とする
-
-            # 最終結果を保存（お手本画像URLを含む）
-            final_feedback_data = feedback_data.copy()
-            if example_image_url:
-                final_feedback_data["example_image_url"] = example_image_url
-
-            service.update_task_status(
-                task_id,
-                TaskStatus.COMPLETED,
-                feedback=final_feedback_data,
-                score=dessin_analysis.overall_score,
-                tags=dessin_analysis.tags,
-                example_image_url=example_image_url
-            )
-            
-            logger.info(
-                "process_review_task_fully_completed",
-                task_id=task_id,
-                score=dessin_analysis.overall_score,
-                has_example_image=example_image_url is not None
-            )
+                # 画像生成リクエスト失敗時は、画像なしでタスク完了とする
+                service.update_task_status(
+                    task_id,
+                    TaskStatus.COMPLETED,
+                    feedback=feedback_data,
+                    score=dessin_analysis.overall_score,
+                    tags=dessin_analysis.tags,
+                )
         else:
             # 失敗時：エラーステータスに更新
             error_message = result.get("error_message", "分析に失敗しました")
