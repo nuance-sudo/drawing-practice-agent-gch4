@@ -506,11 +506,6 @@ _この画像はAI（gemini-2.5-flash-image）によって生成されました_
 | 公開URL生成 | CDN経由での画像配信 |
 | 署名付きURL | セキュアなアップロード |
 
-### 3. Eventarc
-
-| 操作 | 用途 |
-|------|------|
-| Cloud Storageトリガー | オブジェクト作成時にCloud Runを起動 |
 
 ### 4. Vertex AI (Gemini)
 
@@ -526,7 +521,6 @@ _この画像はAI（gemini-2.5-flash-image）によって生成されました_
 | Cloud Run | API Server + Agent ホスティング |
 | Cloud Storage | 画像ストレージ |
 | Cloud CDN | 画像配信 |
-| Eventarc | イベント駆動トリガー |
 | Firestore | タスク・ランク管理 |
 | Secret Manager | 秘密鍵管理 |
 | Cloud Logging | ログ出力 |
@@ -652,7 +646,7 @@ export const useTaskRealtime = (userId: string) => {
 | タイムアウト | 300秒 |
 | 同時実行数 | 1 |
 | イングレス | 内部のみ |
-| 認証 | Eventarcトリガー |
+| 認証 | 不要（API認証で制御） |
 
 ### 環境変数
 
@@ -672,7 +666,7 @@ export const useTaskRealtime = (userId: string) => {
 ```mermaid
 stateDiagram-v2
     [*] --> Pending: 画像アップロード
-    Pending --> Processing: Eventarcトリガー
+    Pending --> Processing: APIリクエスト
     Processing --> Completed: 分析・生成完了
     Processing --> Failed: エラー発生
     Completed --> [*]

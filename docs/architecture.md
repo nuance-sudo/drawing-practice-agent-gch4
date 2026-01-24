@@ -142,7 +142,7 @@ pnpm test
 
 | フェーズ | 目安時間 | 備考 |
 |----------|----------|------|
-| エージェント起動 | 5秒以内 | Eventarcトリガー |
+| エージェント起動 | 即座 | APIリクエスト |
 | フェーズ1（分析） | 1分程度 | テキストフィードバック |
 | フェーズ2（生成） | 3分程度 | 画像生成・保存 |
 
@@ -253,15 +253,13 @@ flowchart TB
     C -->|JWT検証| C
     C -->|サービスアカウント| E
     E -->|GetSecretValue| D
-    F -->|トリガー| G
-    G -->|サービスアカウント| E
 ```
 
 | 項目 | 実装 |
 |------|------|
 | ユーザー認証 | Auth.js + GitHub OAuth |
 | API認証 | JWT（Auth.jsセッション）|
-| Eventarc → Cloud Run | サービスアカウント |
+| Cloud Functions | サービスアカウント |
 | Vertex AI認証 | サービスアカウント（自動） |
 | GitHub認証 | GitHub OAuth（Auth.js）|
 
@@ -467,7 +465,7 @@ gcloud run deploy dessin-coaching-agent \
 ### その他の技術（任意）
 - [x] **Cloud Storage** - 画像ストレージ
 - [x] **Cloud CDN** - 画像配信
-- [x] **Eventarc** - イベント駆動トリガー
+- [ ] **Eventarc** - 未使用
 - [x] **Firestore** - タスク・ランク管理
 - [x] **Secret Manager** - 秘密鍵管理
 - [x] **Cloud Logging** - ログ出力

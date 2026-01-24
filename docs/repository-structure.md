@@ -280,7 +280,6 @@ packages/infra/
 └── scripts/                   # gcloudスクリプト
     ├── setup-project.sh      # プロジェクト初期設定
     ├── setup-storage.sh      # Cloud Storage設定
-    ├── setup-eventarc.sh     # Eventarc設定
     └── setup-workload-identity.sh  # Workload Identity設定
 ```
 
