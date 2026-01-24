@@ -31,6 +31,7 @@
 | ログ | structlog | 25.5+ | 構造化ログ |
 | リトライ | tenacity | 9.0+ | リトライ処理 |
 | ホスティング | Cloud Run | - | サーバーレス実行 |
+| 関数 | Cloud Run Functions | - | 画像生成・完了処理 |
 | コンテナ | Docker | 24+ | パッケージング |
 
 > **Note**: バージョンは2026年1月時点の最新版です。`/check-package-versions` スキルで最新バージョンを確認できます。
@@ -39,18 +40,18 @@
 
 | サービス | モデル | 用途 |
 |----------|--------|------|
-| Vertex AI | `gemini-3-flash-preview` | マルチモーダル画像分析 |
-| Vertex AI | `gemini-2.5-flash-image` | お手本画像生成 |
+| Vertex AI | `gemini-3-flash-preview` | マルチモーダル画像分析（Agent API） |
+| Vertex AI | `gemini-2.5-flash-image` | お手本画像生成（Cloud Functions） |
 
 ### インフラストラクチャ
 
 | サービス | 用途 |
 |----------|------|
 | Cloud Run | API Server + Agentホスティング |
+| Cloud Run Functions | 画像生成、タスク完了処理 |
 | Cloud Storage | 画像ストレージ |
 | Cloud CDN | 画像配信（高速・グローバル） |
-| Eventarc | イベント駆動トリガー（即時実行） |
-| Firestore | タスク管理、ユーザーランク管理 |
+| Firestore | タスク管理（review_tasks）、ユーザーランク管理 |
 | Secret Manager | 秘密鍵管理 |
 | Artifact Registry | コンテナイメージレジストリ |
 | Cloud Logging | ログ出力 |
@@ -185,22 +186,28 @@ flowchart TB
         end
         subgraph Agent["Coaching Agent"]
             C[agent.py]
-            D[ADK Runtime]
+            D[ADK Tools]
         end
-        E[Session Service<br/>Firestore]
+        E[Firestore<br/>review_tasks]
     end
     
+    subgraph CloudFunctions["Cloud Functions"]
+        F1[generate-image]
+        F2[complete-task]
+    end
+
     subgraph External["External Services"]
-        F[Gemini API]
-        G[Cloud Storage]
-        H[Eventarc]
+        G[Gemini API]
+        H[Cloud Storage]
     end
     
     B --> E
-    D --> E
-    D --> F
     D --> G
-    H --> D
+    B -->|HTTP Request| F1
+    F1 --> G
+    F1 --> H
+    F1 -->|HTTP Request| F2
+    F2 --> E
 ```
 
 ### セッション管理

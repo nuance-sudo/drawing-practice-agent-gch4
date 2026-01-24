@@ -16,7 +16,7 @@ flowchart TB
         A[ユーザー<br/>ブラウザ]
     end
 
-    subgraph Firebase["Firebase Hosting"]
+    subgraph Firebase["Firebase"]
         B[ウェブアプリ<br/>React + PWA]
     end
 
@@ -26,17 +26,13 @@ flowchart TB
             D[Cloud CDN<br/>画像公開]
         end
         
-        subgraph Trigger["トリガー"]
-            E[Eventarc<br/>イベント駆動]
-        end
-        
         subgraph Compute["コンピュート"]
-            F[Cloud Run<br/>API Server]
-            G[Coaching Agent<br/>ADK]
+            F[Cloud Run<br/>API Server / Agent]
+            G[Cloud Functions<br/>Image Gen / Completion]
         end
         
         subgraph Data["データ"]
-            H[Firestore<br/>タスク・ランク]
+            H[Firestore<br/>review_tasks]
         end
         
         subgraph Security["セキュリティ"]
@@ -47,27 +43,20 @@ flowchart TB
     end
 
     subgraph AI["Vertex AI"]
-        K[gemini-3-flash-preview<br/>画像分析]
-        L[gemini-2.5-flash-image<br/>画像生成]
+        K[gemini-3-flash-preview]
+        L[gemini-2.5-flash-image]
     end
 
     A -->|審査依頼| B
     B -->|API Call| F
     F -->|画像保存| C
-    C -->|公開| D
-    C -->|オブジェクト作成| E
-    E -->|即時トリガー| G
-    G -->|画像取得| D
-    G -->|分析リクエスト| K
-    K -->|分析結果| G
-    G -->|画像生成リクエスト| L
-    L -->|生成画像| G
+    F -->|分析リクエスト| K
+    F -->|HTTP Request| G
+    G -->|画像生成| L
+    G -->|画像保存| C
     G -->|タスク更新| H
-    F -->|タスク取得| H
-    G -->|ランク取得/更新| H
-    G -->|シークレット取得| I
-    G -->|ログ出力| J
-    G -->|Web Push| A
+    F -->|ランク更新| H
+    F -->|Web Push| A
 ```
 
 ---
@@ -82,10 +71,8 @@ sequenceDiagram
     participant Web as ウェブアプリ<br/>(Firebase Hosting)
     participant API as API Server<br/>(Cloud Run)
     participant GCS as Cloud Storage
-    participant CDN as Cloud CDN
-    participant Eventarc as Eventarc
-    participant Agent as Coaching Agent<br/>(Cloud Run)
     participant Gemini as Vertex AI<br/>(gemini-3-flash-preview)
+    participant Func as Cloud Functions<br/>(generate/complete)
     participant ImageGen as Vertex AI<br/>(gemini-2.5-flash-image)
     participant DB as Firestore
 
@@ -97,27 +84,22 @@ sequenceDiagram
     
     Note over User,Web: Firestoreリアルタイム監視開始
     
-    GCS->>Eventarc: オブジェクト作成イベント
-    Eventarc->>Agent: 即時トリガー
-    Agent->>DB: タスク更新 (processing)
-    Agent->>CDN: 画像取得
-    CDN-->>Agent: 画像データ
-    Agent->>DB: ランク取得
-    DB-->>Agent: ランク情報
+    API->>DB: タスク更新 (processing)
+    API->>Gemini: デッサン分析リクエスト
+    Gemini-->>API: 分析結果
+    API->>DB: ランク更新・分析データ保存
     
-    Note over Agent: フェーズ1: 即時分析
-    Agent->>Gemini: デッサン分析リクエスト
-    Gemini-->>Agent: 分析結果
-    Agent->>Agent: フィードバック生成
-    Agent->>DB: タスク更新 (フィードバック保存)
+    Note over API: フェーズ2: 非同期画像生成
+    API->>Func: POST /generate-image
+    API-->>Web: (処理継続中)
     
-    Note over Agent: フェーズ2: 画像生成
-    Agent->>ImageGen: お手本画像生成リクエスト
-    ImageGen-->>Agent: 生成画像
-    Agent->>GCS: 生成画像保存
-    Agent->>DB: ランク更新
-    Agent->>DB: タスク更新 (completed)
-    Agent->>User: Web Push通知
+    Func->>ImageGen: お手本画像生成リクエスト
+    ImageGen-->>Func: 生成画像
+    Func->>GCS: 生成画像保存
+    Func->>Func: POST /complete-task
+    Func->>DB: タスク更新 (completed, score, example_url)
+    
+    API->>User: Web Push通知
 
     User->>Web: 結果確認
     Web->>API: GET /reviews/{taskId}
@@ -554,7 +536,7 @@ _この画像はAI（gemini-2.5-flash-image）によって生成されました_
 
 ## Firestore データ構造
 
-### コレクション: `tasks`
+### コレクション: `review_tasks`
 
 ```
 tasks/
@@ -601,8 +583,8 @@ push_subscriptions/
 
 | コレクション | フィールド | タイプ |
 |--------------|------------|--------|
-| tasks | user_id, created_at | 複合（昇順、降順） |
-| tasks | status | 単一 |
+| review_tasks | user_id, created_at | 複合（昇順、降順） |
+| review_tasks | status | 単一 |
 | user_ranks | rank_level | 降順 |
 
 ### リアルタイム監視（onSnapshot）
@@ -619,7 +601,7 @@ export const useTaskRealtime = (userId: string) => {
 
   useEffect(() => {
     const q = query(
-      collection(db, 'tasks'),
+      collection(db, 'review_tasks'),
       where('user_id', '==', userId),
       orderBy('created_at', 'desc')
     );

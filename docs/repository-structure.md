@@ -18,6 +18,7 @@ drawing-practice-agent-gch4/
 ├── packages/                   # モノレポパッケージ
 │   ├── agent/                  # エージェント・API実装（Python/ADK）
 │   ├── web/                    # ウェブアプリ実装（React/Vite）
+│   ├── functions/              # Cloud Run Functions実装（Python）
 │   └── infra/                  # インフラ定義（Terraform/gcloud）
 ├── docs/                       # 永続的ドキュメント
 ├── scripts/                    # ルートスクリプト（統合デプロイ等）
@@ -247,6 +248,21 @@ packages/web/
 │
 └── tests/                    # テストコード
     └── ...
+
+### `packages/functions/` - Cloud Run Functions実装
+
+画像生成とタスク完了処理を行う軽量なHTTP関数。
+
+```
+packages/functions/
+├── deploy_functions.sh         # デプロイスクリプト
+├── generate_image/             # お手本画像生成関数
+│   ├── main.py
+│   └── requirements.txt
+└── complete_task/               # タスク完了処理関数
+    ├── main.py
+    └── requirements.txt
+```
 ```
 
 ### `packages/infra/` - インフラ定義

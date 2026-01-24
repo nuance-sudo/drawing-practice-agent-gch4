@@ -41,16 +41,17 @@ flowchart TB
         A[ブラウザ]
     end
 
-    subgraph Vercel["Vercel"]
+    subgraph Firebase["Firebase"]
         B[ウェブアプリ<br/>React + PWA]
     end
 
     subgraph GCP["Google Cloud"]
         C[Cloud Storage] --> D[Cloud CDN]
-        C -->|オブジェクト作成| E[Eventarc]
-        E -->|即時トリガー| F[Cloud Run<br/>API + Agent]
-        F --> G[Firestore<br/>タスク管理]
-        F --> H[Vertex AI<br/>Gemini]
+        F[Cloud Run<br/>API + Agent] --> G[Firestore<br/>タスク管理]
+        F --> H[Vertex AI<br/>Gemini分析]
+        F -->|HTTP Request| I[Cloud Functions<br/>画像生成 + 完了処理]
+        I --> G
+        I --> C
     end
 
     A -->|画像アップロード| B
@@ -75,8 +76,8 @@ packages/
 | **Frontend** | React 19, Vite 7, Tailwind CSS 4, Zustand 5, SWR |
 | **Backend** | Python 3.12+, FastAPI, Google ADK |
 | **AI Models** | gemini-3-flash-preview, gemini-2.5-flash-image |
-| **Infrastructure** | Cloud Run, Cloud Storage, Cloud CDN, Eventarc, Firestore |
-| **Hosting** | Vercel (Web), Cloud Run (API/Agent) |
+| **Infrastructure** | Cloud Run, Cloud Run Functions, Cloud Storage, Cloud CDN, Firestore |
+| **Hosting** | Firebase Hosting (Web), Cloud Run (API/Agent) |
 
 ## 📂 ドキュメント
 
