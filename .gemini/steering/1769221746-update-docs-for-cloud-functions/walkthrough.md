@@ -19,6 +19,9 @@
 ### 4. [docs/repository-structure.md](file:///home/ec2-user/src/drawing-practice-agent-gch4/docs/repository-structure.md)
 - `packages/functions/` ディレクトリ（`generate_image`, `complete_task`）の構造定義を追加しました。
 
+### 5. 全ドキュメントからの旧アーキテクチャ記述の削除
+- プロダクト要求定義書、技術仕様書、機能設計書から、旧アーキテクチャの残骸である **Eventarc** の記述を完全に削除し、最新の HTTP 連携フローに統一しました。
+
 ## 検証結果
 - 各ドキュメントの Mermaid ダイアグラムが正しい構文で記述されていることを確認しました。
 - 用語（コレクション名、サービス名）が最新の実装と一致していることを確認しました。
