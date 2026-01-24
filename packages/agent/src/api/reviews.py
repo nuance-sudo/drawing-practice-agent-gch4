@@ -17,7 +17,7 @@ from src.models.task import (
     TaskStatus,
 )
 from src.services.feedback_service import get_feedback_service
-from src.services.feedback_service import get_feedback_service
+from src.services.image_generation_service import get_image_generation_service
 from src.services.rank_service import get_rank_service
 from src.services.task_service import get_task_service
 from src.tools.analysis import analyze_dessin_image
@@ -27,7 +27,7 @@ logger = structlog.get_logger()
 router = APIRouter(prefix="/reviews", tags=["reviews"])
 
 
-def process_review_task(task_id: str, user_id: str, image_url: str) -> None:
+async def process_review_task(task_id: str, user_id: str, image_url: str) -> None:
     """バックグラウンドでレビュータスクを処理
 
     Args:
@@ -61,7 +61,7 @@ def process_review_task(task_id: str, user_id: str, image_url: str) -> None:
             # 成功時：結果をFirestoreに保存
             service.update_task_status(
                 task_id,
-                TaskStatus.COMPLETED,
+                TaskStatus.PROCESSING,
                 feedback=analysis,
                 score=analysis.get("overall_score"),
                 tags=analysis.get("tags"),
@@ -109,18 +109,43 @@ def process_review_task(task_id: str, user_id: str, image_url: str) -> None:
             feedback_data["summary"] = feedback_response.summary
             feedback_data["detailed_feedback"] = feedback_response.detailed_feedback
 
+            # 中間結果を保存（フィードバックまで完了）
             service.update_task_status(
                 task_id,
-                TaskStatus.COMPLETED,
+                TaskStatus.PROCESSING,
                 feedback=feedback_data,
                 score=dessin_analysis.overall_score,
                 tags=dessin_analysis.tags,
             )
-            logger.info(
-                "process_review_task_completed",
-                task_id=task_id,
-                score=dessin_analysis.overall_score,
-            )
+
+            # お手本画像生成（Cloud Function呼び出し）
+            try:
+                logger.info("example_image_generation_request_started", task_id=task_id)
+                image_generation_service = get_image_generation_service()
+                
+                await image_generation_service.generate_example_image(
+                    task_id=task_id,
+                    original_image_url=image_url,
+                    analysis=dessin_analysis,
+                    user_rank=user_rank,
+                    motif_tags=dessin_analysis.tags
+                )
+                
+                logger.info("example_image_generation_request_completed", task_id=task_id)
+                # Cloud Functionからの完了通知待ちのため、ここではステータスを更新しない
+                    
+            except Exception as e:
+                logger.error("example_image_generation_request_failed", 
+                           task_id=task_id, 
+                           error=str(e))
+                # 画像生成リクエスト失敗時は、画像なしでタスク完了とする
+                service.update_task_status(
+                    task_id,
+                    TaskStatus.COMPLETED,
+                    feedback=feedback_data,
+                    score=dessin_analysis.overall_score,
+                    tags=dessin_analysis.tags,
+                )
         else:
             # 失敗時：エラーステータスに更新
             error_message = result.get("error_message", "分析に失敗しました")
@@ -185,12 +210,12 @@ async def create_review(
     )
 
     # バックグラウンドでエージェント分析を開始
-    background_tasks.add_task(
-        process_review_task,
+    import asyncio
+    asyncio.create_task(process_review_task(
         task_id=task.task_id,
         user_id=task.user_id,
         image_url=task.image_url,
-    )
+    ))
 
     logger.info(
         "review_created",

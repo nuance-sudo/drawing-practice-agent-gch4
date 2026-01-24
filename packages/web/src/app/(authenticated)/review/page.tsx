@@ -78,45 +78,22 @@ function ReviewContent() {
             </div>
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
-                    {/* Left Column: Images */}
-                    <div className="space-y-8">
-                        <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100">
-                            <h3 className="font-bold text-slate-500 mb-3 px-2">あなたのデッサン</h3>
-                            <div className="rounded-2xl overflow-hidden bg-slate-100">
-                                <img src={task.imageUrl} alt="Original" className="w-full object-contain" />
-                            </div>
-                        </div>
-
-                        {task.exampleImageUrl && (
-                            <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100">
-                                <h3 className="font-bold text-purple-600 mb-3 px-2">AIによる改善例</h3>
-                                <div className="rounded-2xl overflow-hidden bg-purple-50">
-                                    <img src={task.exampleImageUrl} alt="Example" className="w-full object-contain" />
-                                </div>
-                            </div>
-                        )}
+                {task.status === 'completed' && task.feedback ? (
+                    <FeedbackDisplay
+                        task={task}
+                        feedback={task.feedback}
+                        rank={rank?.label ?? '10級'}
+                    />
+                ) : (
+                    <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 text-center max-w-md mx-auto">
+                        <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+                        <h3 className="text-xl font-bold text-slate-900 mb-2">分析中...</h3>
+                        <p className="text-slate-500">
+                            AIがあなたのデッサンを分析しています。<br />
+                            完了までしばらくお待ちください。
+                        </p>
                     </div>
-
-                    {/* Right Column: Feedback */}
-                    <div>
-                        {task.status === 'completed' && task.feedback ? (
-                            <FeedbackDisplay
-                                feedback={task.feedback}
-                                rank={rank?.label ?? '10級'}
-                            />
-                        ) : (
-                            <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 text-center">
-                                <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
-                                <h3 className="text-xl font-bold text-slate-900 mb-2">分析中...</h3>
-                                <p className="text-slate-500">
-                                    AIがあなたのデッサンを分析しています。<br />
-                                    完了までしばらくお待ちください。
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                </div>
+                )}
             </div>
         </div>
     );

@@ -1,13 +1,41 @@
 import { Star, TrendingUp, AlertTriangle } from 'lucide-react';
 import type { ReviewTask, Feedback, CategoryFeedback } from '@/types/task';
 import { clsx } from 'clsx';
+import { ExampleImageDisplay } from './ExampleImageDisplay';
 
 type FeedbackDisplayProps = {
+    task: ReviewTask;
     feedback: Feedback;
     rank: string;
 };
 
-export const FeedbackDisplay = ({ feedback, rank }: FeedbackDisplayProps) => {
+export const FeedbackDisplay = ({ task, feedback, rank }: FeedbackDisplayProps) => {
+    // ランクからターゲットランクを計算（簡易版）
+    const getTargetRank = (currentRank: string): string => {
+        const rankMap: Record<string, string> = {
+            '10級': '9級',
+            '9級': '8級',
+            '8級': '7級',
+            '7級': '6級',
+            '6級': '5級',
+            '5級': '4級',
+            '4級': '3級',
+            '3級': '2級',
+            '2級': '1級',
+            '1級': '初段',
+            '初段': '2段',
+            '2段': '3段',
+            '3段': '師範代',
+            '師範代': '師範',
+            '師範': '師範'
+        };
+        return rankMap[currentRank] || currentRank;
+    };
+
+    const targetRank = getTargetRank(rank);
+    const isGenerating = task.status === 'processing' && !task.exampleImageUrl;
+    const generationFailed = task.status === 'completed' && !task.exampleImageUrl;
+
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header Section */}
@@ -26,6 +54,18 @@ export const FeedbackDisplay = ({ feedback, rank }: FeedbackDisplayProps) => {
                     </div>
                     <TrendingUp className="w-8 h-8 opacity-80" />
                 </div>
+            </div>
+
+            {/* お手本画像表示セクション */}
+            <div className="bg-white rounded-3xl p-6 shadow-lg border border-gray-100">
+                <ExampleImageDisplay
+                    originalImageUrl={task.imageUrl}
+                    exampleImageUrl={task.exampleImageUrl}
+                    isGenerating={isGenerating}
+                    generationFailed={generationFailed}
+                    currentRank={rank}
+                    targetRank={targetRank}
+                />
             </div>
 
             {/* Categories Grid */}
