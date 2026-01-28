@@ -152,8 +152,13 @@ class ImageGenerationService:
         if current_rank.value >= Rank.SHIHAN.value:
             return current_rank.label
         
-        next_rank = Rank(current_rank.value + 1)
-        return next_rank.label
+        try:
+            next_rank = Rank(current_rank.value + 1)
+            return next_rank.label
+        except ValueError:
+            # Invalid rank value, return current rank as fallback
+            logger.warning("invalid_next_rank_value", current_value=current_rank.value)
+            return current_rank.label
 
 
 # シングルトンインスタンス
