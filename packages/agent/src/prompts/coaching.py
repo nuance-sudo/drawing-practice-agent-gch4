@@ -166,7 +166,8 @@ def _get_rank_category(rank_label: str) -> str:
                 return "初級"
             elif kyu_level >= 1:
                 return "中級"
-        except:
+        except ValueError:
+            # Invalid number format in rank label
             pass
     elif "段" in rank_label:
         return "上級"
