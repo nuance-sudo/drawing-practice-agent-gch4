@@ -19,7 +19,7 @@ echo "Deploying 'complete_task' function..."
 echo "=================================================="
 
 # デプロイ順序を変更：complete-taskを先にデプロイしてURLを取得する
-
+# IAM認証を使用（--allow-unauthenticatedを削除）
 gcloud functions deploy complete-task \
     --gen2 \
     --runtime=python312 \
@@ -27,9 +27,9 @@ gcloud functions deploy complete-task \
     --source=packages/functions/complete_task \
     --entry-point=complete_task \
     --trigger-http \
-    --allow-unauthenticated \
-    --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID
+    --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCP_REGION=$REGION
 
+# URLを取得
 COMPLETE_TASK_URL=$(gcloud functions describe complete-task --gen2 --region=$REGION --format="value(serviceConfig.uri)")
 echo "Complete Task URL: $COMPLETE_TASK_URL"
 
@@ -44,10 +44,23 @@ gcloud functions deploy generate-image \
     --source=packages/functions/generate_image \
     --entry-point=generate_example_image \
     --trigger-http \
-    --allow-unauthenticated \
     --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,OUTPUT_BUCKET_NAME=$GCS_BUCKET_NAME,GCP_REGION=$REGION,COMPLETE_TASK_FUNCTION_URL=$COMPLETE_TASK_URL \
     --memory=1Gi \
     --timeout=300s
+
+# generate-image関数のサービスアカウントを取得
+GENERATE_IMAGE_SA=$(gcloud functions describe generate-image --gen2 --region=$REGION --format="value(serviceConfig.serviceAccountEmail)")
+echo "Generate Image Service Account: $GENERATE_IMAGE_SA"
+
+# Cloud Functions Gen2は内部的にCloud Runサービスとして実行されるため、
+# Cloud RunのIAMポリシーバインディングコマンドを使用
+# Gen2関数のサービス名は "FUNCTION_NAME" 形式
+echo "Granting Cloud Run Invoker role to $GENERATE_IMAGE_SA for complete-task function..."
+gcloud run services add-iam-policy-binding complete-task \
+    --region=$REGION \
+    --member="serviceAccount:${GENERATE_IMAGE_SA}" \
+    --role="roles/run.invoker" \
+    || echo "Warning: Failed to grant IAM permission. You may need to grant it manually."
 
 # URLを取得して表示
 FUNCTION_URL=$(gcloud functions describe generate-image --gen2 --region=$REGION --format="value(serviceConfig.uri)")

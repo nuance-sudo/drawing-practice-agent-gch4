@@ -1,4 +1,3 @@
 functions-framework==3.*
 google-cloud-firestore==2.*
-
 structlog==24.*

@@ -26,9 +26,12 @@ db = firestore.Client()
 
 @functions_framework.http
 def complete_task(request):
-    """HTTP Cloud Function to mark task as completed."""
+    """HTTP Cloud Function to mark task as completed.
     
-    # Authenticate/Authorize if needed (e.g. check for internal token or assume private networking)
+    IAM認証がGCPレベルで自動的にチェックされます。
+    サービス間呼び出しでは、呼び出し元のサービスアカウントに
+    Cloud Functions Invoker ロールが必要です。
+    """
     
     try:
         request_json = request.get_json(silent=True)
