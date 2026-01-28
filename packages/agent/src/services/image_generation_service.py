@@ -126,21 +126,34 @@ class ImageGenerationService:
             raise ImageGenerationError(f"Failed to request generation: {e}")
 
     def _get_target_rank_label(self, current_rank_label: str) -> str:
-        """現在のランクからターゲットランクのラベルを簡易的に算出"""
-        # 厳密なロジックはFunction側に移譲したが、ラベル渡しのために最低限のロジックを残すか、
-        # あるいは現在のランクだけ送ってFunction側で計算させるのが美しい。
-        # 今回はFunction側で target_rank_label を受け取る仕様にしたので、ここで計算する。
-        # 元のロジック: rank.value + 1
-        return "5級" # 仮実装: 実際は元のEnumロジックを持ってくる必要があるが
-                     # 循環参照などを避けるため、一旦簡易的に元のロジックをコピーするか、
-                     # UserRankオブジェクトから計算できるならそれが良い。
-                     # user_rank.current_rank は Enum なので、ここで計算可能。
+        """現在のランクからターゲットランクのラベルを算出
         
-        # 簡易実装：本来は ImageGenerationService.get_target_rank と同じロジック
-        # ここではとりあえず分析結果の向上を目指すとして固定値、または入力値をそのまま使うか検討。
-        # Function側でロジックを持つほうが良いので、「現在のランク」を送ってFunctionで+1する設計にすべきだったかもしれない。
-        # しかしFunction仕様では target_rank_label を受け取るようになっている。
-        pass
+        Args:
+            current_rank_label: 現在のランクのラベル（例: "10級", "1段", "師範代"）
+            
+        Returns:
+            次のランクのラベル。最高ランクの場合は現在のラベルをそのまま返す。
+        """
+        from src.models.rank import Rank
+        
+        # ラベルから現在のRankを逆引き
+        current_rank: Rank | None = None
+        for rank in Rank:
+            if rank.label == current_rank_label:
+                current_rank = rank
+                break
+        
+        if current_rank is None:
+            # 不明なラベルの場合は入力をそのまま返す
+            logger.warning("unknown_rank_label", label=current_rank_label)
+            return current_rank_label
+        
+        # 次のランクを取得（最高ランクの場合は現在のランクを返す）
+        if current_rank.value >= Rank.SHIHAN.value:
+            return current_rank.label
+        
+        next_rank = Rank(current_rank.value + 1)
+        return next_rank.label
 
 
 # シングルトンインスタンス

@@ -10,7 +10,10 @@ async function getAuthToken(): Promise<string> {
 }
 
 // 環境変数またはデフォルトのlocalhost
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL =
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    'http://localhost:8000';
 
 async function fetchWithAuth(path: string, options: RequestInit = {}) {
     const token = await getAuthToken();
