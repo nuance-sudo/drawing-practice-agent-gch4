@@ -13,13 +13,10 @@ from src.tools.analysis import analyze_dessin_image
 logger = structlog.get_logger()
 
 # ルートエージェント定義
-# 注意: エージェントのinstructionはデフォルト設定として使用される。
-# 実際のユーザーのランクは analyze_dessin_image 関数内で動的に設定され、
-# そのランクに応じたシステムプロンプトが生成される。
 root_agent = Agent(
     name="dessin-coaching-agent",
     model=settings.gemini_model,
     description="鉛筆デッサンを分析し、改善フィードバックを提供するコーチングエージェント",
-    instruction=get_dessin_analysis_system_prompt("10級"),  # デフォルト値（実際のランクは analyze_dessin_image で動的に設定）
+    instruction=get_dessin_analysis_system_prompt(),  # デフォルト値（実際のランクは analyze_dessin_image で動的に設定）
     tools=[analyze_dessin_image],
 )
