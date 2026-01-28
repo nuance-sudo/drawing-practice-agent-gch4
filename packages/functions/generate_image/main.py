@@ -6,6 +6,7 @@ import asyncio
 import functions_framework
 from typing import List, Optional, Dict, Any
 from io import BytesIO
+from urllib.parse import urlparse
 from PIL import Image
 from google import genai
 from google.genai import types
@@ -37,6 +38,10 @@ GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-image")
 LOCATION = "us-central1"
 
 class ImageGenerationError(Exception):
+    pass
+
+class InvalidImageURLError(Exception):
+    """URL検証エラー"""
     pass
 
 # Rank Descriptions (Ported from ImageGenerationService)
@@ -165,10 +170,53 @@ def _get_texture_requirements(rank_label: str) -> str:
     if val <= 13: return "Weight, temperature, softness expression, tactile reality that engages senses"
     return "Complete sensory engagement, innovative textural expression, revolutionary techniques"
 
+def _validate_image_url(url: str) -> None:
+    """
+    URLを検証して、セキュリティリスクを防ぐ
+    
+    Raises:
+        InvalidImageURLError: URLが無効な場合
+    """
+    try:
+        parsed = urlparse(url)
+        
+        # HTTPSスキームのみ許可
+        if parsed.scheme != 'https':
+            raise InvalidImageURLError(f"Only HTTPS URLs are allowed, got: {parsed.scheme}")
+        
+        # ホスト名の検証
+        hostname = parsed.hostname
+        if not hostname:
+            raise InvalidImageURLError("Missing hostname in URL")
+        
+        # 内部GCPエンドポイントやプライベートIPをブロック
+        blocked_hosts = [
+            'metadata.google.internal',
+            'metadata',
+            '169.254.169.254',  # GCPメタデータサーバーのIP
+            'localhost',
+            '127.0.0.1',
+            '0.0.0.0',
+        ]
+        
+        hostname_lower = hostname.lower()
+        for blocked in blocked_hosts:
+            if blocked in hostname_lower:
+                raise InvalidImageURLError(f"Blocked hostname: {hostname}")
+        
+        # プライベートIPレンジのチェック（簡易版）
+        if hostname.startswith('10.') or hostname.startswith('172.16.') or hostname.startswith('192.168.'):
+            raise InvalidImageURLError(f"Private IP range not allowed: {hostname}")
+            
+    except Exception as e:
+        if isinstance(e, InvalidImageURLError):
+            raise
+        raise InvalidImageURLError(f"Invalid URL format: {str(e)}")
+
 def _get_mime_type_from_url(url: str) -> str:
     """URLからMIMEタイプを判定する"""
     url_lower = url.lower()
-    if url_lower.endswith(('.png',)):
+    if url_lower.endswith('.png'):
         return "image/png"
     elif url_lower.endswith(('.jpg', '.jpeg')):
         return "image/jpeg"
@@ -261,78 +309,78 @@ async def generate_image(prompt: str, original_image_data: bytes, mime_type: str
     
     # 公式ドキュメントの例に合わせて、bytesからPIL Imageに変換
     # Pythonの例: contents=[prompt, image] の形式で、imageはPIL Imageオブジェクト
-    image = Image.open(BytesIO(original_image_data))
-    
-    for attempt in range(max_retries):
-        try:
-            # Use generate_content for Gemini 2.5 Flash Image with native image output
-            # 公式ドキュメントの例に合わせて、シンプルな形式でcontentsを渡す
-            # contents=[prompt, image] の形式（imageはPIL Imageオブジェクト）
-            response = client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=[prompt, image],
-                config=types.GenerateContentConfig(
-                    response_modalities=["IMAGE"],
-                    safety_settings=[
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_HATE_SPEECH",
-                            threshold="BLOCK_MEDIUM_AND_ABOVE"
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_DANGEROUS_CONTENT",
-                            threshold="BLOCK_MEDIUM_AND_ABOVE"
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                            threshold="BLOCK_MEDIUM_AND_ABOVE"
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_HARASSMENT",
-                            threshold="BLOCK_MEDIUM_AND_ABOVE"
-                        ),
-                    ],
+    # mime_typeは現在の実装では使用されないが、将来の拡張のために保持
+    with Image.open(BytesIO(original_image_data)) as image:
+        for attempt in range(max_retries):
+            try:
+                # Use generate_content for Gemini 2.5 Flash Image with native image output
+                # 公式ドキュメントの例に合わせて、シンプルな形式でcontentsを渡す
+                # contents=[prompt, image] の形式（imageはPIL Imageオブジェクト）
+                response = client.models.generate_content(
+                    model=GEMINI_MODEL,
+                    contents=[prompt, image],
+                    config=types.GenerateContentConfig(
+                        response_modalities=["IMAGE"],
+                        safety_settings=[
+                            types.SafetySetting(
+                                category="HARM_CATEGORY_HATE_SPEECH",
+                                threshold="BLOCK_MEDIUM_AND_ABOVE"
+                            ),
+                            types.SafetySetting(
+                                category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                                threshold="BLOCK_MEDIUM_AND_ABOVE"
+                            ),
+                            types.SafetySetting(
+                                category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                                threshold="BLOCK_MEDIUM_AND_ABOVE"
+                            ),
+                            types.SafetySetting(
+                                category="HARM_CATEGORY_HARASSMENT",
+                                threshold="BLOCK_MEDIUM_AND_ABOVE"
+                            ),
+                        ],
+                    )
                 )
-            )
-            
-            # Extract image from response parts
-            if response.candidates:
-                for candidate in response.candidates:
-                    if candidate.content and candidate.content.parts:
-                        for part in candidate.content.parts:
-                            if part.inline_data and part.inline_data.data:
-                                return part.inline_data.data
+                
+                # Extract image from response parts
+                if response.candidates:
+                    for candidate in response.candidates:
+                        if candidate.content and candidate.content.parts:
+                            for part in candidate.content.parts:
+                                if part.inline_data and part.inline_data.data:
+                                    return part.inline_data.data
 
-            # Log the actual response structure for debugging if we fail
-            logger.error("image_generation_response_invalid", 
-                         response_candidates=len(response.candidates) if response.candidates else 0,
-                         detail="No inline_data found in candidates")
+                # Log the actual response structure for debugging if we fail
+                logger.error("image_generation_response_invalid", 
+                             response_candidates=len(response.candidates) if response.candidates else 0,
+                             detail="No inline_data found in candidates")
 
-            raise ImageGenerationError("No image data found in response")
-            
-        except Exception as e:
-            error_type = type(e).__name__
-            error_message = str(e)
-            logger.error("image_generation_failed", 
-                        error=error_message,
-                        error_type=error_type,
-                        attempt=attempt+1,
-                        max_retries=max_retries)
-            
-            if attempt == max_retries - 1:
-                logger.error("image_generation_failed_final", 
-                            error=error_message, 
+                raise ImageGenerationError("No image data found in response")
+                
+            except Exception as e:
+                error_type = type(e).__name__
+                error_message = str(e)
+                logger.error("image_generation_failed", 
+                            error=error_message,
                             error_type=error_type,
-                            task_attempt=attempt+1)
-                raise
-            
-            wait_time = 2 ** attempt
-            logger.warning("image_generation_failed_retrying", 
-                           attempt=attempt+1, 
-                           wait_time=wait_time, 
-                           error=error_message,
-                           error_type=error_type)
-            await asyncio.sleep(wait_time)
-            
+                            attempt=attempt+1,
+                            max_retries=max_retries)
+                
+                if attempt == max_retries - 1:
+                    logger.error("image_generation_failed_final", 
+                                error=error_message, 
+                                error_type=error_type,
+                                task_attempt=attempt+1)
+                    raise
+                
+                wait_time = 2 ** attempt
+                logger.warning("image_generation_failed_retrying", 
+                               attempt=attempt+1, 
+                               wait_time=wait_time, 
+                               error=error_message,
+                               error_type=error_type)
+                await asyncio.sleep(wait_time)
+                
     # Should not reach here
     raise ImageGenerationError("Retry loop exhausted without result")
 
@@ -370,13 +418,32 @@ def generate_example_image(request):
 
         # We will use a helper async function to handle the flow
         async def process():
-            # 1. Fetch Image
+            # 0. Validate URL (security check)
+            _validate_image_url(original_image_url)
+            
+            # 1. Fetch Image with timeout and size limits
             import aiohttp
-            async with aiohttp.ClientSession() as session:
+            # タイムアウト設定: 10秒
+            timeout = aiohttp.ClientTimeout(total=10)
+            # サイズ制限: 10MB
+            max_size = 10 * 1024 * 1024  # 10MB
+            
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(original_image_url) as resp:
                     if resp.status != 200:
                         raise ImageGenerationError(f"Failed to fetch original image: {resp.status}")
-                    original_image_data = await resp.read()
+                    
+                    # サイズ制限チェック
+                    content_length = resp.headers.get('Content-Length')
+                    if content_length and int(content_length) > max_size:
+                        raise ImageGenerationError(f"Image size exceeds limit: {content_length} bytes")
+                    
+                    # チャンクごとに読み込んでサイズをチェック
+                    original_image_data = b''
+                    async for chunk in resp.content.iter_chunked(8192):
+                        original_image_data += chunk
+                        if len(original_image_data) > max_size:
+                            raise ImageGenerationError(f"Image size exceeds limit: {len(original_image_data)} bytes")
 
             # 2. Determine MIME type from URL
             mime_type = _get_mime_type_from_url(original_image_url)
@@ -386,14 +453,14 @@ def generate_example_image(request):
             
             # 生成された画像のサイズを取得してログに記録
             try:
-                generated_image = Image.open(BytesIO(generated_bytes))
-                image_width, image_height = generated_image.size
-                logger.info("image_generation_completed",
-                            task_id=task_id,
-                            generated_bytes_len=len(generated_bytes),
-                            image_width=image_width,
-                            image_height=image_height,
-                            image_format=generated_image.format)
+                with Image.open(BytesIO(generated_bytes)) as generated_image:
+                    image_width, image_height = generated_image.size
+                    logger.info("image_generation_completed",
+                                task_id=task_id,
+                                generated_bytes_len=len(generated_bytes),
+                                image_width=image_width,
+                                image_height=image_height,
+                                image_format=generated_image.format)
             except Exception as e:
                 logger.warning("image_size_extraction_failed",
                              task_id=task_id,
@@ -430,40 +497,54 @@ def generate_example_image(request):
             example_image_url = f"https://storage.googleapis.com/{OUTPUT_BUCKET_NAME}/{blob_path}"
             
             if COMPLETE_TASK_FUNCTION_URL:
-                 import aiohttp
-                 async with aiohttp.ClientSession() as session:
+                import aiohttp
+                import google.auth.transport.requests
+                import google.oauth2.id_token
+                
+                # IDトークンを取得してサービス間認証を行う
+                try:
+                    auth_req = google.auth.transport.requests.Request()
+                    target_audience = COMPLETE_TASK_FUNCTION_URL
+                    
+                    # 同期処理なのでExecutorで実行
+                    id_token = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: google.oauth2.id_token.fetch_id_token(auth_req, target_audience)
+                    )
+                    
+                    headers = {
+                        "Authorization": f"Bearer {id_token}",
+                        "Content-Type": "application/json"
+                    }
+                except Exception as e:
+                    logger.error("failed_to_get_id_token",
+                                error=str(e),
+                                task_id=task_id,
+                                complete_task_url=COMPLETE_TASK_FUNCTION_URL)
+                    # 認証トークンの取得に失敗した場合でも続行（後方互換性のため）
+                    # ただし、エラーを記録して警告
+                    headers = {"Content-Type": "application/json"}
+                
+                async with aiohttp.ClientSession() as session:
                     payload = {
                         "task_id": task_id,
                         "example_image_url": example_image_url,
-                         # Add any other fields if complete_task needs them, but currently it just needs these.
-                         # Should we pass user_id? complete_task doesn't seem to use it for docref update.
-                         # It logged it previously, but now we removed that.
                     }
-                    # Add Auth header if your service requires it (e.g. OIDC token)
-                    # For now assuming public or internal unauth (which might fail if ingress is strict)
-                    # If running in Cloud Run/Functions, we should get an ID token to call another authenticated function.
-                    # But deploy script says "--ingress-settings=ALLOW_ALL" and "no-auth" is unstated but let's assume...
-                    # Wait, usually functions require auth. 
-                    # If allow-unauthenticated is NOT set, we need a token.
-                    # Given the user context "Just call it normally", and "Internal traffic", 
-                    # let's try calling it. If 403, we need to add auth logic.
-                    # For simplicity, I will implement a basic call.
-                    async with session.post(COMPLETE_TASK_FUNCTION_URL, json=payload) as resp:
-                         if resp.status >= 400:
-                             response_text = await resp.text()
-                             logger.error("failed_to_call_complete_task", 
+                    async with session.post(COMPLETE_TASK_FUNCTION_URL, json=payload, headers=headers) as resp:
+                        if resp.status >= 400:
+                            response_text = await resp.text()
+                            logger.error("failed_to_call_complete_task", 
                                         status=resp.status, 
                                         body=response_text,
                                         task_id=task_id,
                                         example_image_url=example_image_url)
-                             # Don't fail the whole function if this fails? Or should we?
-                             # Better to fail so we know.
-                             # But image is generated.
-                             pass
-                         else:
-                             logger.info("complete_task_called_successfully",
-                                       task_id=task_id,
-                                       example_image_url=example_image_url)
+                            # タスク完了の呼び出しに失敗した場合は、関数全体を失敗させる
+                            # これにより、状態の一貫性が保たれる
+                            raise ImageGenerationError(f"Failed to call complete_task: {resp.status} - {response_text}")
+                        else:
+                            logger.info("complete_task_called_successfully",
+                                        task_id=task_id,
+                                        example_image_url=example_image_url)
             else:
                 logger.warning("COMPLETE_TASK_FUNCTION_URL_not_set", 
                              detail="Task completion step skipped",
@@ -482,6 +563,13 @@ def generate_example_image(request):
         logger.info("function_completed", task_id=task_id, path=blob_path)
         return {"status": "success", "path": blob_path}, 200
 
+    except InvalidImageURLError as e:
+        # URL検証エラーは400 Bad Requestとして返す
+        error_message = str(e)
+        logger.error("invalid_image_url", 
+                    error=error_message,
+                    original_image_url=request_json.get("original_image_url") if request_json else None)
+        return {"error": f"Invalid image URL: {error_message}", "error_type": "InvalidImageURLError"}, 400
     except Exception as e:
         error_type = type(e).__name__
         error_message = str(e)
