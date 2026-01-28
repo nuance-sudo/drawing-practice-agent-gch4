@@ -5,6 +5,8 @@ import structlog
 import asyncio
 import functions_framework
 from typing import List, Optional, Dict, Any
+from io import BytesIO
+from PIL import Image
 from google import genai
 from google.genai import types
 from google.cloud import storage
@@ -163,6 +165,17 @@ def _get_texture_requirements(rank_label: str) -> str:
     if val <= 13: return "Weight, temperature, softness expression, tactile reality that engages senses"
     return "Complete sensory engagement, innovative textural expression, revolutionary techniques"
 
+def _get_mime_type_from_url(url: str) -> str:
+    """URLからMIMEタイプを判定する"""
+    url_lower = url.lower()
+    if url_lower.endswith(('.png',)):
+        return "image/png"
+    elif url_lower.endswith(('.jpg', '.jpeg')):
+        return "image/jpeg"
+    else:
+        # デフォルトはJPEG
+        return "image/jpeg"
+
 
 def create_generation_prompt(analysis: Dict[str, Any], target_rank: str, current_rank_label: str, motif_tags: List[str]) -> str:
     improvements_list = "\n".join([f"- {improvement}" for improvement in analysis.get("improvements", [])])
@@ -239,19 +252,25 @@ def create_generation_prompt(analysis: Dict[str, Any], target_rank: str, current
         texture_requirements=_get_texture_requirements(target_rank)
     )
 
-async def generate_image(prompt: str, original_image_data: bytes, max_retries: int = 3) -> bytes:
+async def generate_image(prompt: str, original_image_data: bytes, mime_type: str = "image/jpeg", max_retries: int = 3) -> bytes:
     client = genai.Client(
         vertexai=True,
         project=PROJECT_ID,
         location=LOCATION,
     )
     
+    # 公式ドキュメントの例に合わせて、bytesからPIL Imageに変換
+    # Pythonの例: contents=[prompt, image] の形式で、imageはPIL Imageオブジェクト
+    image = Image.open(BytesIO(original_image_data))
+    
     for attempt in range(max_retries):
         try:
             # Use generate_content for Gemini 2.5 Flash Image with native image output
+            # 公式ドキュメントの例に合わせて、シンプルな形式でcontentsを渡す
+            # contents=[prompt, image] の形式（imageはPIL Imageオブジェクト）
             response = client.models.generate_content(
                 model=GEMINI_MODEL,
-                contents=[prompt], # Original image support needs verification for this mode, but prompt is primary
+                contents=[prompt, image],
                 config=types.GenerateContentConfig(
                     response_modalities=["IMAGE"],
                     safety_settings=[
@@ -291,15 +310,27 @@ async def generate_image(prompt: str, original_image_data: bytes, max_retries: i
             raise ImageGenerationError("No image data found in response")
             
         except Exception as e:
+            error_type = type(e).__name__
+            error_message = str(e)
+            logger.error("image_generation_failed", 
+                        error=error_message,
+                        error_type=error_type,
+                        attempt=attempt+1,
+                        max_retries=max_retries)
+            
             if attempt == max_retries - 1:
-                logger.error("image_generation_failed_final", error=str(e), task_attempt=attempt+1)
+                logger.error("image_generation_failed_final", 
+                            error=error_message, 
+                            error_type=error_type,
+                            task_attempt=attempt+1)
                 raise
             
             wait_time = 2 ** attempt
             logger.warning("image_generation_failed_retrying", 
                            attempt=attempt+1, 
                            wait_time=wait_time, 
-                           error=str(e))
+                           error=error_message,
+                           error_type=error_type)
             await asyncio.sleep(wait_time)
             
     # Should not reach here
@@ -333,19 +364,9 @@ def generate_example_image(request):
 
         # Generate Prompt
         prompt = create_generation_prompt(analysis, target_rank_label, current_rank_label, motif_tags)
-        # Run async generation logic (Functions Framework is synchronous by default, so we wrap async calls)
-        # Fetch Original Image (Requires converting URL to bytes, or just passing URL if Gemini supports it? 
-        # Agent implementation fetched bytes. Let's replicate that logic or skip if Gemini can handle GCS URI?
-        # Gemini 2.5 Flash Image generate_image method usually takes prompt. 
-        # The agent code used `generate_image(prompt=prompt, original_image_data=original_image_data)`.
-        # This implies Image-to-Image. 
-        # We need to fetch the original image first.
         
-        # NOTE: Fetching image logic
+        # Initialize storage client for saving generated image
         storage_client = storage.Client()
-        # Parse GCS URL if possible, or HTTP Get.
-        # Agent logic handles HTTP Get.
-        pass
 
         # We will use a helper async function to handle the flow
         async def process():
@@ -357,10 +378,29 @@ def generate_example_image(request):
                         raise ImageGenerationError(f"Failed to fetch original image: {resp.status}")
                     original_image_data = await resp.read()
 
-            # 2. Generate
-            generated_bytes = await generate_image(prompt, original_image_data)
+            # 2. Determine MIME type from URL
+            mime_type = _get_mime_type_from_url(original_image_url)
 
-            # 3. Save to GCS
+            # 3. Generate
+            generated_bytes = await generate_image(prompt, original_image_data, mime_type)
+            
+            # 生成された画像のサイズを取得してログに記録
+            try:
+                generated_image = Image.open(BytesIO(generated_bytes))
+                image_width, image_height = generated_image.size
+                logger.info("image_generation_completed",
+                            task_id=task_id,
+                            generated_bytes_len=len(generated_bytes),
+                            image_width=image_width,
+                            image_height=image_height,
+                            image_format=generated_image.format)
+            except Exception as e:
+                logger.warning("image_size_extraction_failed",
+                             task_id=task_id,
+                             generated_bytes_len=len(generated_bytes),
+                             error=str(e))
+
+            # 4. Save to GCS
             bucket = storage_client.bucket(OUTPUT_BUCKET_NAME)
             blob_path = f"generated/{task_id}.png"
             blob = bucket.blob(blob_path)
@@ -380,6 +420,11 @@ def generate_example_image(request):
             }
             blob.metadata = metadata
             await asyncio.get_event_loop().run_in_executor(None, blob.patch)
+            
+            logger.info("image_saved_to_gcs",
+                        task_id=task_id,
+                        blob_path=blob_path,
+                        bucket_name=OUTPUT_BUCKET_NAME)
 
             # 4. Call Complete Task Function
             example_image_url = f"https://storage.googleapis.com/{OUTPUT_BUCKET_NAME}/{blob_path}"
@@ -406,15 +451,25 @@ def generate_example_image(request):
                     async with session.post(COMPLETE_TASK_FUNCTION_URL, json=payload) as resp:
                          if resp.status >= 400:
                              response_text = await resp.text()
-                             logger.error("failed_to_call_complete_task", status=resp.status, body=response_text)
+                             logger.error("failed_to_call_complete_task", 
+                                        status=resp.status, 
+                                        body=response_text,
+                                        task_id=task_id,
+                                        example_image_url=example_image_url)
                              # Don't fail the whole function if this fails? Or should we?
                              # Better to fail so we know.
                              # But image is generated.
                              pass
                          else:
-                             logger.info("complete_task_called_successfully")
+                             logger.info("complete_task_called_successfully",
+                                       task_id=task_id,
+                                       example_image_url=example_image_url)
             else:
-                logger.warning("COMPLETE_TASK_FUNCTION_URL_not_set", detail="Task completion step skipped")
+                logger.warning("COMPLETE_TASK_FUNCTION_URL_not_set", 
+                             detail="Task completion step skipped",
+                             task_id=task_id,
+                             example_image_url=example_image_url,
+                             note="Firestore will not be updated. Set COMPLETE_TASK_FUNCTION_URL environment variable.")
             
             return blob_path
 
@@ -428,6 +483,14 @@ def generate_example_image(request):
         return {"status": "success", "path": blob_path}, 200
 
     except Exception as e:
-        logger.error("function_failed", error=str(e))
+        error_type = type(e).__name__
+        error_message = str(e)
+        import traceback
+        error_traceback = traceback.format_exc()
+        
+        logger.error("function_failed", 
+                    error=error_message,
+                    error_type=error_type,
+                    traceback=error_traceback)
         # Ensure we return 500 so Cloud Functions/Scheduler knows it failed
-        return {"error": str(e)}, 500
+        return {"error": error_message, "error_type": error_type}, 500
