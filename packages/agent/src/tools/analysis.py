@@ -11,8 +11,8 @@ from pydantic import ValidationError
 from src.config import settings
 from src.models.feedback import DessinAnalysis
 from src.prompts.coaching import (
-    DESSIN_ANALYSIS_SYSTEM_PROMPT,
     DESSIN_ANALYSIS_USER_PROMPT,
+    get_dessin_analysis_system_prompt,
 )
 from src.utils.validation import sanitize_for_storage, validate_image_url
 
@@ -111,6 +111,9 @@ def analyze_dessin_image(image_url: str, rank_label: str = "初学者") -> dict[
             mime_type=mime_type,
         )
 
+        # ランク情報を含むシステムプロンプトを生成
+        system_prompt = get_dessin_analysis_system_prompt(rank_label)
+        
         # プロンプトにランク情報を注入
         user_prompt = f"ユーザーの現在のランク: {rank_label}\n\n{DESSIN_ANALYSIS_USER_PROMPT}"
 
@@ -127,7 +130,7 @@ def analyze_dessin_image(image_url: str, rank_label: str = "初学者") -> dict[
                 ),
             ],
             config=types.GenerateContentConfig(
-                system_instruction=DESSIN_ANALYSIS_SYSTEM_PROMPT,
+                system_instruction=system_prompt,
                 max_output_tokens=settings.gemini_max_output_tokens,
                 temperature=settings.gemini_temperature,
                 response_mime_type="application/json",
