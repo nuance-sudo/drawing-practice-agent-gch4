@@ -7,7 +7,7 @@ import structlog
 from google.adk.agents import Agent
 
 from src.config import settings
-from src.prompts.coaching import DESSIN_ANALYSIS_SYSTEM_PROMPT
+from src.prompts.coaching import get_dessin_analysis_system_prompt
 from src.tools.analysis import analyze_dessin_image
 
 logger = structlog.get_logger()
@@ -17,6 +17,6 @@ root_agent = Agent(
     name="dessin-coaching-agent",
     model=settings.gemini_model,
     description="鉛筆デッサンを分析し、改善フィードバックを提供するコーチングエージェント",
-    instruction=DESSIN_ANALYSIS_SYSTEM_PROMPT,
+    instruction=get_dessin_analysis_system_prompt("10級"),
     tools=[analyze_dessin_image],
 )

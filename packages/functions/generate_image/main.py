@@ -62,9 +62,14 @@ Create an improved pencil drawing based on the following analysis and target ski
 
 **Original Drawing Analysis:**
 - Overall Score: {overall_score}/100
-- Current Performance: {current_rank}
+- Current Skill Level: {current_rank_label} (Current Performance: {current_rank})
 - Target Skill Level: {target_rank}
 - Subject Matter: {motif_tags}
+
+**Context:**
+The user is currently at {current_rank_label} level and aiming to improve toward {target_rank} level.
+The example image should demonstrate what the drawing would look like when executed at {target_rank} skill level,
+taking into account the user's current level ({current_rank_label}) and showing appropriate progression.
 
 **Strengths (良い点):**
 {strengths_list}
@@ -90,6 +95,11 @@ Focus especially on: {primary_improvement_areas}
 - **Line Quality**: {line_requirements}
 - **Texture Expression**: {texture_requirements}
 
+**Rank-Based Evaluation Context:**
+- Current Rank ({current_rank_label}): The user's current skill level. Consider what techniques they are likely familiar with.
+- Target Rank ({target_rank}): The next level they should aim for. The example should demonstrate techniques appropriate for this level.
+- Progression: Show clear improvement from {current_rank_label} to {target_rank} level in the identified improvement areas.
+
 **Drawing Specifications:**
 - Medium: Graphite pencil on paper (realistic academic drawing style)
 - Style: Classical realism with proper pencil techniques
@@ -100,11 +110,15 @@ Focus especially on: {primary_improvement_areas}
 **Generation Instructions:**
 Create a pencil drawing that demonstrates the specific improvements mentioned above.
 The drawing should show what this subject would look like when executed at {target_rank} skill level.
+The example should be achievable and inspiring for someone currently at {current_rank_label} level,
+showing clear progression toward {target_rank} level techniques.
+
 Emphasize the following technical improvements: {specific_improvements}
 
 The result should be a traditional graphite pencil drawing that clearly demonstrates 
 superior technique in the identified improvement areas while maintaining the same subject matter.
-Ensure the drawing exhibits the technical standards expected at {target_rank} level.
+Ensure the drawing exhibits the technical standards expected at {target_rank} level,
+while being appropriate as a learning reference for someone at {current_rank_label} level.
 """
 
 def _get_rank_value(rank_label: str) -> int:
@@ -207,6 +221,7 @@ def create_generation_prompt(analysis: Dict[str, Any], target_rank: str, current
 
     return BASE_PROMPT_TEMPLATE.format(
         overall_score=analysis.get("overall_score", 0),
+        current_rank_label=current_rank_label,
         current_rank=f"{current_rank_label} (Score: {analysis.get('overall_score', 0)})",
         target_rank=target_rank,
         motif_tags=", ".join(motif_tags),

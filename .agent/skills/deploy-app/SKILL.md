@@ -32,6 +32,23 @@ description: アプリケーション（Web/Agent）をデプロイする
 
 対象が `backend` または `all` の場合：
 
+> [!CAUTION]
+> **環境変数の注意**: `--set-env-vars` を使うと既存の環境変数が**全て消えます**。
+> 環境変数を追加/更新する場合は `--update-env-vars` を使用してください。
+
+#### 必須環境変数
+
+以下の環境変数は `packages/agent/.env` に設定されています。デプロイ時に参照してください。
+
+| 環境変数 | 説明 |
+|---------|------|
+| `GCP_PROJECT_ID` | GCPプロジェクトID |
+| `FIRESTORE_DATABASE` | Firestoreデータベース |
+| `GCS_BUCKET_NAME` | GCSバケット名 |
+| `IMAGE_GENERATION_FUNCTION_URL` | 画像生成Function URL |
+
+#### 手順
+
 1. **ディレクトリ移動 & ビルド & Push**
    - Cwd: `packages/agent`
    - Command:
@@ -41,9 +58,27 @@ description: アプリケーション（Web/Agent）をデプロイする
 
 2. **Cloud Run へデプロイ**
    - Cwd: `packages/agent`
-   - Command:
+   - `.env`から環境変数を読み込んでデプロイ：
      ```bash
-     gcloud run deploy dessin-coaching-agent --image asia-northeast1-docker.pkg.dev/drawing-practice-agent/drawing-practice-agent/agent:latest --platform managed --region asia-northeast1 --project=drawing-practice-agent --allow-unauthenticated
+     # .envから環境変数を読み込み
+     source .env
+     
+     gcloud run deploy dessin-coaching-agent \
+       --image asia-northeast1-docker.pkg.dev/drawing-practice-agent/drawing-practice-agent/agent:latest \
+       --platform managed \
+       --region asia-northeast1 \
+       --project=drawing-practice-agent \
+       --allow-unauthenticated \
+       --set-env-vars "GCP_PROJECT_ID=${GCP_PROJECT_ID},FIRESTORE_DATABASE=${FIRESTORE_DATABASE},GCS_BUCKET_NAME=${GCS_BUCKET_NAME},IMAGE_GENERATION_FUNCTION_URL=${IMAGE_GENERATION_FUNCTION_URL}"
+     ```
+
+3. **環境変数の追加/更新（個別変更時）**
+   - 新しい環境変数を追加する場合は `--update-env-vars` を使用：
+     ```bash
+     gcloud run services update dessin-coaching-agent \
+       --project drawing-practice-agent \
+       --region asia-northeast1 \
+       --update-env-vars "NEW_VAR=value"
      ```
 
 ### 2. Frontend (Firebase Hosting) のデプロイ
