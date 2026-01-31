@@ -87,7 +87,12 @@ export default function Home() {
                     </span>
                   </h2>
                 </div>
-                <TaskGrid tasks={filteredTasks} loading={isLoading} error={error} />
+                <TaskGrid
+                  key={`${selectedDate}-${selectedTag}`}
+                  tasks={filteredTasks}
+                  loading={isLoading}
+                  error={error}
+                />
               </section>
             </div>
 

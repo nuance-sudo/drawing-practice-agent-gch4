@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, limit, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/auth-store';
 
@@ -31,12 +31,11 @@ export const useRank = () => {
 
     useEffect(() => {
         if (!user) {
-            setRank(null);
-            setLoading(false);
+            // ユーザーがいない場合は初期状態のままにする
             return;
         }
 
-        setLoading(true);
+        // onSnapshotのコールバック内でsetStateを呼ぶのは正しいパターン
         // ユーザーランクは 'users/{userId}' ドキュメントに保存されている想定
         const userRef = doc(db, 'users', user.uid);
 

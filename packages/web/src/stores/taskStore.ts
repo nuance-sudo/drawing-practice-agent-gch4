@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ReviewTask, TaskStatus } from '@/types/task';
+import type { ReviewTask } from '@/types/task';
 
 type TaskState = {
     tasks: ReviewTask[];
