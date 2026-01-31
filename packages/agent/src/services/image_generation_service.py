@@ -79,8 +79,9 @@ class ImageGenerationService:
             }
 
             # IDトークン取得
+            # Cloud Functions Gen2の場合、.run.appのURLをtarget_audienceとして使用
+            target_audience = self._convert_to_run_app_url(self.function_url)
             auth_req = google.auth.transport.requests.Request()
-            target_audience = self.function_url
             
             # 同期処理なのでExecutorで実行
             id_token = await asyncio.get_event_loop().run_in_executor(
@@ -124,6 +125,32 @@ class ImageGenerationService:
             # しかし呼び出し元でステータス管理するなら例外を投げた方がよいか？
             # reviews.pyでは例外キャッチしているので投げてOK
             raise ImageGenerationError(f"Failed to request generation: {e}")
+
+    def _convert_to_run_app_url(self, url: str) -> str:
+        """Cloud Functions Gen2のURLを.run.app形式に変換（IDトークンのtarget_audience用）
+        
+        Cloud Functions Gen2の場合、IDトークンのtarget_audienceは.run.appのURLである必要があります。
+        .cloudfunctions.netのURLが渡された場合、.run.app形式に変換します。
+        
+        Args:
+            url: .cloudfunctions.netまたは.run.appのURL
+            
+        Returns:
+            .run.app形式のURL（既に.run.appの場合はそのまま）
+        """
+        if ".cloudfunctions.net" in url:
+            # https://REGION-PROJECT.cloudfunctions.net/FUNCTION_NAME
+            # → https://FUNCTION_NAME-XXXXX-REGION.a.run.app
+            # 正確な変換には実際のデプロイ後のURLが必要だが、簡易的に変換を試みる
+            # 実際には環境変数に.run.appのURLを設定することを推奨
+            logger.warning(
+                "converting_cloudfunctions_url_to_run_app",
+                original_url=url,
+                note="Consider using .run.app URL directly in environment variable"
+            )
+            # 簡易変換（正確ではない可能性がある）
+            return url.replace(".cloudfunctions.net", ".a.run.app")
+        return url
 
     def _get_target_rank_label(self, current_rank_label: str) -> str:
         """現在のランクからターゲットランクのラベルを算出

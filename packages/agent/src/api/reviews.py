@@ -17,6 +17,7 @@ from src.models.task import (
     TaskStatus,
 )
 from src.services.feedback_service import get_feedback_service
+from src.services.annotation_service import get_annotation_service
 from src.services.image_generation_service import get_image_generation_service
 from src.services.rank_service import get_rank_service
 from src.services.task_service import get_task_service
@@ -117,6 +118,25 @@ async def process_review_task(task_id: str, user_id: str, image_url: str) -> Non
                 score=dessin_analysis.overall_score,
                 tags=dessin_analysis.tags,
             )
+
+            # アノテーション画像生成（Cloud Function呼び出し）
+            try:
+                logger.info("annotation_generation_request_started", task_id=task_id)
+                annotation_service = get_annotation_service()
+                await annotation_service.generate_annotated_image(
+                    task_id=task_id,
+                    original_image_url=image_url,
+                    analysis=dessin_analysis,
+                    user_rank=user_rank,
+                    motif_tags=dessin_analysis.tags,
+                )
+                logger.info("annotation_generation_request_completed", task_id=task_id)
+            except Exception as e:
+                logger.error(
+                    "annotation_generation_request_failed",
+                    task_id=task_id,
+                    error=str(e),
+                )
 
             # お手本画像生成（Cloud Function呼び出し）
             try:

@@ -35,6 +35,8 @@ export const FeedbackDisplay = ({ task, feedback, rank }: FeedbackDisplayProps) 
     const targetRank = getTargetRank(rank);
     const isGenerating = task.status === 'processing' && !task.exampleImageUrl;
     const generationFailed = task.status === 'completed' && !task.exampleImageUrl;
+    const isAnnotating = task.status === 'processing' && !task.annotatedImageUrl;
+    const annotationFailed = task.status === 'completed' && !task.annotatedImageUrl;
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -60,9 +62,12 @@ export const FeedbackDisplay = ({ task, feedback, rank }: FeedbackDisplayProps) 
             <div className="bg-white rounded-3xl p-6 shadow-lg border border-gray-100">
                 <ExampleImageDisplay
                     originalImageUrl={task.imageUrl}
+                    annotatedImageUrl={task.annotatedImageUrl}
                     exampleImageUrl={task.exampleImageUrl}
                     isGenerating={isGenerating}
                     generationFailed={generationFailed}
+                    isAnnotating={isAnnotating}
+                    annotationFailed={annotationFailed}
                     currentRank={rank}
                     targetRank={targetRank}
                 />

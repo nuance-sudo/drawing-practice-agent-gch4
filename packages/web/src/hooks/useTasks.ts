@@ -68,6 +68,7 @@ const mapDocToTask = (docSnapshot: DocumentSnapshot<DocumentData>): ReviewTask =
         userId: data.user_id as string,
         status: data.status as TaskStatus,
         imageUrl: data.image_url as string,
+        annotatedImageUrl: data.annotated_image_url as string | undefined,
         exampleImageUrl: data.example_image_url as string | undefined,
         feedback: feedback,
         score: data.score as number | undefined,

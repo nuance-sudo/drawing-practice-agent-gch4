@@ -8,3 +8,6 @@ __pycache__/
 .idea/
 .vscode/
 .firebase
+
+# Cloud Run環境変数ファイル
+env.yaml

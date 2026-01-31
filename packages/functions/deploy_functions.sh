@@ -4,7 +4,8 @@ set -e
 
 
 # 設定（環境に合わせて変更してください）
-REGION="${REGION:-asia-northeast1}"
+# Cloud Functionsのデプロイリージョン（Gemini APIはコード内でglobalエンドポイントを使用）
+REGION="${REGION:-us-central1}"
 # バケット設定
 GCS_BUCKET_NAME="${GCS_BUCKET_NAME:-drawing-practice-agent-images}"
 
@@ -19,7 +20,7 @@ echo "Deploying 'complete_task' function..."
 echo "=================================================="
 
 # デプロイ順序を変更：complete-taskを先にデプロイしてURLを取得する
-# IAM認証を使用（--allow-unauthenticatedを削除）
+# IAM認証を使用（--no-allow-unauthenticated）
 gcloud functions deploy complete-task \
     --gen2 \
     --runtime=python312 \
@@ -27,6 +28,7 @@ gcloud functions deploy complete-task \
     --source=packages/functions/complete_task \
     --entry-point=complete_task \
     --trigger-http \
+    --no-allow-unauthenticated \
     --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCP_REGION=$REGION
 
 # URLを取得
@@ -44,7 +46,8 @@ gcloud functions deploy generate-image \
     --source=packages/functions/generate_image \
     --entry-point=generate_example_image \
     --trigger-http \
-    --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,OUTPUT_BUCKET_NAME=$GCS_BUCKET_NAME,GCP_REGION=$REGION,COMPLETE_TASK_FUNCTION_URL=$COMPLETE_TASK_URL \
+    --no-allow-unauthenticated \
+    --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,OUTPUT_BUCKET_NAME=$GCS_BUCKET_NAME,COMPLETE_TASK_FUNCTION_URL=$COMPLETE_TASK_URL,GEMINI_MODEL=gemini-2.5-flash-image \
     --memory=1Gi \
     --timeout=300s
 
@@ -66,6 +69,26 @@ gcloud run services add-iam-policy-binding complete-task \
 FUNCTION_URL=$(gcloud functions describe generate-image --gen2 --region=$REGION --format="value(serviceConfig.uri)")
 echo "Function deployed to: $FUNCTION_URL"
 echo "Make sure to update image_generation_function_url in your .env file!"
+
+echo "=================================================="
+echo "Deploying 'annotate-image' function..."
+echo "=================================================="
+
+gcloud functions deploy annotate-image \
+    --gen2 \
+    --runtime=python312 \
+    --region=$REGION \
+    --source=packages/functions/annotate_image \
+    --entry-point=annotate_image \
+    --trigger-http \
+    --no-allow-unauthenticated \
+    --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,OUTPUT_BUCKET_NAME=$GCS_BUCKET_NAME,GEMINI_MODEL=gemini-3-flash-preview \
+    --memory=1Gi \
+    --timeout=300s
+
+ANNOTATE_FUNCTION_URL=$(gcloud functions describe annotate-image --gen2 --region=$REGION --format="value(serviceConfig.uri)")
+echo "Annotate Image URL: $ANNOTATE_FUNCTION_URL"
+echo "Make sure to update annotation_function_url in your .env file!"
 
 echo "=================================================="
 echo "Deployment Complete!"

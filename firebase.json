@@ -7,7 +7,7 @@
       "**/node_modules/**"
     ],
     "frameworksBackend": {
-      "region": "asia-northeast1"
+      "region": "us-central1"
     }
   },
   "firestore": {
