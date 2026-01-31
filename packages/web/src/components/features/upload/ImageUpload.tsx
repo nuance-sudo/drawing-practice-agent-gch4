@@ -127,7 +127,7 @@ export const ImageUpload = ({ onUpload, isUploading = false }: ImageUploadProps)
                                 {isUploading ? (
                                     <span className="flex items-center gap-2">
                                         <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                                        審査中...
+                                        準備中...
                                     </span>
                                 ) : (
                                     <span className="flex items-center gap-2">
