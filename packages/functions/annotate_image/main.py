@@ -91,7 +91,8 @@ def _build_annotation_prompt(
     motif_tags: List[str],
 ) -> str:
     improvements = analysis.get("improvements", [])
-    improvements_list = "\n".join([f"- {item}" for item in improvements[:5]])
+    # 番号付きリストに変更（フロントエンドの表示と一致させる）
+    improvements_list = "\n".join([f"{i + 1}. {item}" for i, item in enumerate(improvements[:5])])
 
     prop = analysis.get("proportion", {})
     tone = analysis.get("tone", {})
@@ -100,14 +101,32 @@ def _build_annotation_prompt(
 
     return f"""
 You are an art instructor. Annotate the drawing to highlight improvement points.
-Use code execution to draw bounding boxes, arrows, and short labels directly on the image.
-Focus on the top 2-3 most important improvement areas. Keep labels short.
+Use code execution with Python PIL/Pillow to draw annotations directly on the image.
+
+CRITICAL REQUIREMENTS:
+1. Draw a BOUNDING BOX (rectangle outline) around each area that needs improvement
+2. Place a NUMBERED CIRCLE next to each bounding box
+3. The circle must contain the NUMBER (1, 2, 3...) in WHITE text
+4. USE A DIFFERENT COLOR FOR EACH NUMBER to make them visually distinct
+
+COLOR PALETTE (use these colors for each number):
+- Number 1: Orange (RGB: 245, 158, 11)
+- Number 2: Blue (RGB: 59, 130, 246)
+- Number 3: Green (RGB: 34, 197, 94)
+- Number 4: Purple (RGB: 168, 85, 247)
+- Number 5: Red (RGB: 239, 68, 68)
+
+EXACT SPECIFICATIONS:
+- Bounding box: Colored outline matching the number color, line width 3-4px
+- Number circle: Filled circle with the same color, radius ~20px
+- Number text: WHITE color, bold, font size 20-28px, centered in the circle
+- Place the numbered circle at the top-left corner of each bounding box
 
 Context:
 - Current rank: {current_rank_label}
 - Motif: {", ".join(motif_tags)}
 
-Improvements:
+Improvements (draw these numbers with their assigned colors):
 {improvements_list}
 
 Category notes:
@@ -116,10 +135,44 @@ Category notes:
 - Line: {line.get("stroke_quality", "")}, {line.get("pressure_control", "")}
 - Texture: {texture.get("material_expression", "")}, {texture.get("touch_variety", "")}
 
-Instructions:
-- Use Python with PIL to draw rectangles and labels.
-- Output the final annotated image as the last result.
+EXAMPLE CODE STRUCTURE (you must adapt coordinates based on actual image analysis):
+```python
+from PIL import Image, ImageDraw, ImageFont
+import io
+
+# Load image
+img = Image.open(io.BytesIO(image_bytes))
+draw = ImageDraw.Draw(img)
+
+# Color palette for each number
+colors = [
+    (245, 158, 11),   # 1: Orange
+    (59, 130, 246),   # 2: Blue
+    (34, 197, 94),    # 3: Green
+    (168, 85, 247),   # 4: Purple
+    (239, 68, 68),    # 5: Red
+]
+white = (255, 255, 255)
+
+# For each improvement area (example for number 1):
+num = 1
+color = colors[num - 1]
+
+# 1. Draw bounding box around the area
+draw.rectangle([x1, y1, x2, y2], outline=color, width=4)
+
+# 2. Draw numbered circle at top-left of box
+circle_x, circle_y = x1 - 15, y1 - 15
+draw.ellipse([circle_x - 18, circle_y - 18, circle_x + 18, circle_y + 18], fill=color)
+
+# 3. Draw the number in white
+font = ImageFont.load_default(size=24)
+draw.text((circle_x, circle_y), str(num), fill=white, font=font, anchor="mm")
+```
+
+OUTPUT: The final annotated image with colored bounding boxes and numbered circles.
 """.strip()
+
 
 
 async def _generate_annotated_image(prompt: str, image_data: bytes, mime_type: str) -> bytes:
