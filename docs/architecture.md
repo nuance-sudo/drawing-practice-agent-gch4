@@ -41,6 +41,7 @@
 | サービス | モデル | 用途 |
 |----------|--------|------|
 | Vertex AI | `gemini-3-flash-preview` | マルチモーダル画像分析（Agent API） |
+| Vertex AI | `gemini-3-flash-preview` + Agentic Vision | 改善ポイントへのバウンディングボックス描画（code_execution） |
 | Vertex AI | `gemini-2.5-flash-image` | お手本画像生成（Cloud Functions） |
 
 ### インフラストラクチャ
@@ -48,7 +49,7 @@
 | サービス | 用途 |
 |----------|------|
 | Cloud Run | API Server + Agentホスティング |
-| Cloud Run Functions | 画像生成、タスク完了処理 |
+| Cloud Run Functions | アノテーション生成、画像生成、タスク完了処理 |
 | Cloud Storage | 画像ストレージ |
 | Cloud CDN | 画像配信（高速・グローバル） |
 | Firestore | タスク管理（review_tasks）、ユーザーランク管理 |
@@ -192,6 +193,7 @@ flowchart TB
     end
     
     subgraph CloudFunctions["Cloud Functions"]
+        F0[annotate-image]
         F1[generate-image]
         F2[complete-task]
     end
@@ -203,6 +205,10 @@ flowchart TB
     
     B --> E
     D --> G
+    B -->|HTTP Request| F0
+    F0 --> G
+    F0 --> H
+    F0 --> E
     B -->|HTTP Request| F1
     F1 --> G
     F1 --> H

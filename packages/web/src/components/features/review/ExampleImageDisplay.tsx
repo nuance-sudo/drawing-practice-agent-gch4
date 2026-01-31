@@ -22,10 +22,6 @@ interface ExampleImageDisplayProps {
   isAnnotating?: boolean;
   /** アノテーション生成に失敗したかどうか */
   annotationFailed?: boolean;
-  /** ユーザーの現在のランク */
-  currentRank?: string;
-  /** ターゲットランク（ワンランク上） */
-  targetRank?: string;
 }
 
 export const ExampleImageDisplay: React.FC<ExampleImageDisplayProps> = ({
@@ -36,8 +32,6 @@ export const ExampleImageDisplay: React.FC<ExampleImageDisplayProps> = ({
   generationFailed = false,
   isAnnotating = false,
   annotationFailed = false,
-  currentRank,
-  targetRank
 }) => {
   return (
     <div className="space-y-6">
@@ -46,13 +40,9 @@ export const ExampleImageDisplay: React.FC<ExampleImageDisplayProps> = ({
         <h2 className="text-2xl font-bold text-gray-900 mb-2">
           デッサン比較
         </h2>
-        {currentRank && targetRank && (
-          <p className="text-sm text-gray-600">
-            現在のランク: <span className="font-semibold text-blue-600">{currentRank}</span>
-            {' → '}
-            目標レベル: <span className="font-semibold text-green-600">{targetRank}</span>
-          </p>
-        )}
+        <p className="text-sm text-gray-600">
+          改善点を修正したお手本と比較できます
+        </p>
       </div>
 
       {/* 画像比較エリア */}
@@ -63,17 +53,15 @@ export const ExampleImageDisplay: React.FC<ExampleImageDisplayProps> = ({
             <h3 className="text-lg font-semibold text-gray-800">
               あなたのデッサン
             </h3>
-            {currentRank && (
-              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
-                {currentRank}レベル
-              </span>
-            )}
+            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+              オリジナル
+            </span>
           </div>
-          
+
           <div className="relative">
-            <img 
-              src={originalImageUrl} 
-              alt="あなたのデッサン" 
+            <img
+              src={originalImageUrl}
+              alt="あなたのデッサン"
               className="w-full rounded-lg shadow-md border border-gray-200"
             />
           </div>
@@ -109,9 +97,9 @@ export const ExampleImageDisplay: React.FC<ExampleImageDisplayProps> = ({
                 </div>
               </div>
             ) : annotatedImageUrl ? (
-              <img 
-                src={annotatedImageUrl} 
-                alt="アノテーション画像" 
+              <img
+                src={annotatedImageUrl}
+                alt="アノテーション画像"
                 className="w-full rounded-lg shadow-md border border-gray-200"
               />
             ) : annotationFailed ? (
@@ -155,11 +143,9 @@ export const ExampleImageDisplay: React.FC<ExampleImageDisplayProps> = ({
             <h3 className="text-lg font-semibold text-gray-800">
               お手本画像
             </h3>
-            {targetRank && (
-              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-                {targetRank}レベル
-              </span>
-            )}
+            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+              改善例
+            </span>
           </div>
 
           <div className="relative">
@@ -172,17 +158,17 @@ export const ExampleImageDisplay: React.FC<ExampleImageDisplayProps> = ({
                     <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
                     <div className="absolute inset-0 w-12 h-12 border-4 border-transparent border-r-green-400 rounded-full animate-pulse mx-auto"></div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <p className="text-gray-700 font-medium">
                       お手本画像を生成中...
                     </p>
                     <p className="text-sm text-gray-500">
-                      AI（Gemini 2.5 Flash Image）が{targetRank || '上位'}レベルの<br />
+                      AI（Gemini 2.5 Flash Image）が<br />
                       改善例を作成しています
                     </p>
                   </div>
-                  
+
                   {/* プログレスバー風のアニメーション */}
                   <div className="w-48 h-2 bg-gray-200 rounded-full overflow-hidden mx-auto">
                     <div className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full animate-pulse"></div>
@@ -192,29 +178,11 @@ export const ExampleImageDisplay: React.FC<ExampleImageDisplayProps> = ({
             ) : exampleImageUrl ? (
               // 生成完了時の表示
               <div className="space-y-3">
-                <img 
-                  src={exampleImageUrl} 
-                  alt="お手本デッサン" 
+                <img
+                  src={exampleImageUrl}
+                  alt="お手本デッサン"
                   className="w-full rounded-lg shadow-md border border-gray-200"
                 />
-                
-                {/* AI生成の注記 */}
-                <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
-                  <div className="flex items-start space-x-2">
-                    <div className="flex-shrink-0">
-                      <svg className="w-4 h-4 text-amber-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-xs text-amber-800">
-                        <strong>AI生成画像</strong><br />
-                        この画像はGemini 2.5 Flash Imageによって生成されました。
-                        実際の手描きではありません。
-                      </p>
-                    </div>
-                  </div>
-                </div>
               </div>
             ) : generationFailed ? (
               // 生成失敗時の表示
@@ -253,29 +221,6 @@ export const ExampleImageDisplay: React.FC<ExampleImageDisplayProps> = ({
           </div>
         </div>
       </div>
-
-      {/* 改善ポイントのヒント（お手本画像がある場合） */}
-      {exampleImageUrl && !isGenerating && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-start space-x-3">
-            <div className="flex-shrink-0">
-              <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-blue-900 mb-1">
-                お手本画像の活用方法
-              </h4>
-              <ul className="text-sm text-blue-800 space-y-1">
-                <li>• 左右の画像を比較して、違いを観察してください</li>
-                <li>• 特に改善が必要な部分（プロポーション、陰影、線の質など）に注目</li>
-                <li>• 次回の練習時に、お手本の技法を参考にしてください</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

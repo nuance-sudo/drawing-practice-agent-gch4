@@ -28,7 +28,7 @@ flowchart TB
         
         subgraph Compute["コンピュート"]
             F[Cloud Run<br/>API Server / Agent]
-            G[Cloud Functions<br/>Image Gen / Completion]
+            G[Cloud Functions<br/>Annotate / Generate / Complete]
         end
         
         subgraph Data["データ"]
@@ -43,7 +43,7 @@ flowchart TB
     end
 
     subgraph AI["Vertex AI"]
-        K[gemini-3-flash-preview]
+        K[gemini-3-flash-preview<br/>Agentic Vision]
         L[gemini-2.5-flash-image]
     end
 
@@ -51,7 +51,10 @@ flowchart TB
     B -->|API Call| F
     F -->|画像保存| C
     F -->|分析リクエスト| K
-    F -->|HTTP Request| G
+    F -->|アノテーション生成| G
+    G -->|Agentic Vision| K
+    G -->|バウンディングボックス生成&保存| C
+    F -->|お手本画像生成| G
     G -->|画像生成| L
     G -->|画像保存| C
     G -->|タスク更新| H
@@ -72,7 +75,8 @@ sequenceDiagram
     participant API as API Server<br/>(Cloud Run)
     participant GCS as Cloud Storage
     participant Gemini as Vertex AI<br/>(gemini-3-flash-preview)
-    participant Func as Cloud Functions<br/>(generate/complete)
+    participant AnnotateFunc as Cloud Functions<br/>(annotate-image)
+    participant GenFunc as Cloud Functions<br/>(generate-image)
     participant ImageGen as Vertex AI<br/>(gemini-2.5-flash-image)
     participant DB as Firestore
 
@@ -89,15 +93,23 @@ sequenceDiagram
     Gemini-->>API: 分析結果
     API->>DB: ランク更新・分析データ保存
     
-    Note over API: フェーズ2: 非同期画像生成
-    API->>Func: POST /generate-image
-    API-->>Web: (処理継続中)
-    
-    Func->>ImageGen: お手本画像生成リクエスト
-    ImageGen-->>Func: 生成画像
-    Func->>GCS: 生成画像保存
-    Func->>Func: POST /complete-task
-    Func->>DB: タスク更新 (completed, score, example_url)
+    Note over API: フェーズ2: Agentic Visionによるアノテーション
+    API->>AnnotateFunc: POST /annotate-image
+    AnnotateFunc->>Gemini: Agentic Vision (code_execution)
+    Note over Gemini: バウンディングボックス描画
+    Gemini-->>AnnotateFunc: アノテーション画像
+    AnnotateFunc->>GCS: アノテーション画像保存
+    AnnotateFunc->>DB: annotated_image_url保存
+    AnnotateFunc-->>API: annotated_image_url返却
+
+    Note over API: フェーズ3: お手本画像生成（アノテーション参照）
+    API->>GenFunc: POST /generate-image<br/>(元画像 + アノテーション画像)
+    GenFunc->>GCS: 元画像・アノテーション画像取得
+    GenFunc->>ImageGen: お手本画像生成リクエスト<br/>(両画像を入力)
+    ImageGen-->>GenFunc: 生成画像
+    GenFunc->>GCS: 生成画像保存
+    GenFunc->>GenFunc: POST /complete-task
+    GenFunc->>DB: タスク更新 (completed, score, example_url)
     
     API->>User: Web Push通知
 
@@ -105,9 +117,10 @@ sequenceDiagram
     Web->>API: GET /reviews/{taskId}
     API->>DB: タスク取得
     DB-->>API: タスクデータ
-    API-->>Web: フィードバック・画像
+    API-->>Web: フィードバック・アノテーション画像・お手本画像
     Web-->>User: 結果表示
 ```
+
 
 ### エラーハンドリングフロー
 
@@ -119,15 +132,20 @@ flowchart TB
     D -->|No| E[リトライ 最大3回]
     E -->|失敗| C
     D -->|Yes| F[フィードバック保存]
-    F --> G{画像生成成功?}
-    G -->|No| H[リトライ 最大3回]
-    H -->|失敗| I[フィードバックのみで完了]
-    G -->|Yes| J[生成画像保存]
-    I --> K[タスク更新: completed]
-    J --> K
-    C --> L[Web Push: エラー通知]
-    K --> M[Web Push: 完了通知]
+    F --> G{アノテーション生成成功?}
+    G -->|No| G2[アノテーションなしで続行]
+    G -->|Yes| G3[アノテーション画像URL取得]
+    G2 --> H{お手本画像生成成功?}
+    G3 --> H
+    H -->|No| I[リトライ 最大3回]
+    I -->|失敗| J[フィードバックのみで完了]
+    H -->|Yes| K[生成画像保存]
+    J --> L[タスク更新: completed]
+    K --> L
+    C --> M[Web Push: エラー通知]
+    L --> N[Web Push: 完了通知]
 ```
+
 
 ---
 
@@ -295,11 +313,12 @@ flowchart LR
         B --> C[AnalyzeDessin]
         C --> D[GenerateFeedback]
         D --> E[UpdateTask]
-        E --> F[GenerateExampleImage]
-        F --> G[SaveImage]
-        G --> H[UpdateRank]
-        H --> I[FinalizeTask]
-        I --> J[SendNotification]
+        E --> F[GenerateAnnotation]
+        F --> G[GenerateExampleImage]
+        G --> H[SaveImage]
+        H --> I[UpdateRank]
+        I --> J[FinalizeTask]
+        J --> K[SendNotification]
     end
 ```
 
@@ -310,7 +329,8 @@ flowchart LR
 | **AnalyzeDessin** | gemini-3-flash-previewでデッサンを分析 | `GeminiService` |
 | **GenerateFeedback** | フィードバック生成 | `FeedbackService` |
 | **UpdateTask** | タスクステータス更新 | `TaskService` |
-| **GenerateExampleImage** | gemini-2.5-flash-imageでお手本画像生成 | `GeminiService` |
+| **GenerateAnnotation** | Agentic Visionで改善ポイントにバウンディングボックス描画 | `AnnotationService` |
+| **GenerateExampleImage** | 元画像+アノテーション画像を参照し、gemini-2.5-flash-imageでお手本画像生成 | `ImageGenerationService` |
 | **SaveImage** | 生成画像をCloud Storageに保存 | `StorageTool` |
 | **UpdateRank** | ランク判定・更新 | `RankService` |
 | **FinalizeTask** | タスク完了処理 | `TaskService` |
@@ -339,12 +359,13 @@ class ReviewTask(BaseModel):
     task_id: str
     user_id: str
     status: TaskStatus
-    image_url: str                    # 元画像のCDN URL
-    example_image_url: Optional[str]  # 生成画像のCDN URL
-    feedback: Optional[dict]          # フィードバックデータ
-    score: Optional[float]            # 総合スコア
-    tags: Optional[List[str]]         # モチーフタグ
-    error_message: Optional[str]      # エラー時のメッセージ
+    image_url: str                      # 元画像のCDN URL
+    annotated_image_url: Optional[str]  # アノテーション画像のCDN URL（バウンディングボックス付き）
+    example_image_url: Optional[str]    # 生成画像のCDN URL
+    feedback: Optional[dict]            # フィードバックデータ
+    score: Optional[float]              # 総合スコア
+    tags: Optional[List[str]]           # モチーフタグ
+    error_message: Optional[str]        # エラー時のメッセージ
     created_at: datetime
     updated_at: datetime
 ```
@@ -512,7 +533,8 @@ _この画像はAI（gemini-2.5-flash-image）によって生成されました_
 | 操作 | モデル | 用途 |
 |------|--------|------|
 | デッサン分析 | `gemini-3-flash-preview` | マルチモーダル分析 |
-| 画像生成 | `gemini-2.5-flash-image` | お手本画像生成 |
+| アノテーション生成 | `gemini-3-flash-preview` + Agentic Vision | 改善ポイントへのバウンディングボックス描画（code_execution） |
+| 画像生成 | `gemini-2.5-flash-image` | 元画像+アノテーション画像を参照したお手本画像生成 |
 
 ### 5. Google Cloud Services
 
@@ -539,6 +561,7 @@ tasks/
     ├── user_id: string
     ├── status: string (pending|processing|completed|failed)
     ├── image_url: string
+    ├── annotated_image_url: string (optional)  # バウンディングボックス付き画像
     ├── example_image_url: string (optional)
     ├── feedback: map (optional)
     ├── score: number (optional)

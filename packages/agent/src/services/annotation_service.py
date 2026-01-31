@@ -35,8 +35,8 @@ class AnnotationService:
         analysis: DessinAnalysis,
         user_rank: UserRank,
         motif_tags: List[str],
-    ) -> None:
-        """アノテーション画像生成リクエストを送信する（非同期）
+    ) -> str | None:
+        """アノテーション画像生成リクエストを送信し、結果を待って返す
 
         Args:
             task_id: タスクID
@@ -44,10 +44,13 @@ class AnnotationService:
             analysis: デッサン分析結果
             user_rank: ユーザーランク情報
             motif_tags: モチーフタグ
+            
+        Returns:
+            アノテーション画像のURL（生成失敗時はNone）
         """
         if not self.function_url:
             logger.warning("annotation_generation_disabled_no_url")
-            return
+            return None
 
         try:
             payload = {
@@ -72,20 +75,43 @@ class AnnotationService:
                 "Content-Type": "application/json",
             }
 
-            async with aiohttp.ClientSession() as session:
+            # タイムアウトを300秒（5分）に延長（アノテーション生成には時間がかかる場合がある）
+            timeout = aiohttp.ClientTimeout(total=300)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(
                     self.function_url,
                     json=payload,
                     headers=headers,
-                    timeout=10,
                 ) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        raise AnnotationGenerationError(
-                            f"Cloud Function request failed: {response.status} - {error_text}"
+                        logger.error(
+                            "annotation_generation_failed",
+                            task_id=task_id,
+                            status=response.status,
+                            error=error_text,
                         )
+                        return None
+                    
+                    # レスポンスからannotated_image_urlを取得
+                    result = await response.json()
+                    annotated_image_url = result.get("annotated_image_url")
+                    
+                    if annotated_image_url:
+                        logger.info(
+                            "annotation_generation_completed",
+                            task_id=task_id,
+                            annotated_image_url=annotated_image_url,
+                        )
+                        return annotated_image_url
+                    else:
+                        logger.warning(
+                            "annotation_generation_no_url_in_response",
+                            task_id=task_id,
+                            response=result,
+                        )
+                        return None
 
-            logger.info("annotation_generation_request_sent", task_id=task_id)
         except Exception as e:
             logger.error(
                 "annotation_generation_request_failed",
@@ -93,7 +119,8 @@ class AnnotationService:
                 error=str(e),
                 error_type=type(e).__name__,
             )
-            raise AnnotationGenerationError(f"Failed to request annotation: {e}")
+            # エラーが発生しても処理を続行できるようにNoneを返す
+            return None
 
     def _convert_to_run_app_url(self, url: str) -> str:
         """Cloud Functions Gen2のURLを.run.app形式に変換（IDトークンのtarget_audience用）

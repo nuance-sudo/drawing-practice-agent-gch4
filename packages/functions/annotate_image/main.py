@@ -285,14 +285,14 @@ def annotate_image(request):
             )
 
             logger.info("annotation_saved", task_id=task_id, blob_path=blob_path)
-            return blob_path
+            return blob_path, annotated_image_url
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        blob_path = loop.run_until_complete(process())
+        blob_path, annotated_image_url = loop.run_until_complete(process())
         loop.close()
 
-        return {"status": "success", "path": blob_path}, 200
+        return {"status": "success", "path": blob_path, "annotated_image_url": annotated_image_url}, 200
     except InvalidImageURLError as e:
         error_message = str(e)
         logger.error("invalid_image_url", error=error_message)
