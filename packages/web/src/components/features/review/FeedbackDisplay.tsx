@@ -1,4 +1,4 @@
-import { Star, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Star, TrendingUp, Equal, AlertTriangle } from 'lucide-react';
 import type { ReviewTask, Feedback, CategoryFeedback } from '@/types/task';
 import { clsx } from 'clsx';
 import { ExampleImageDisplay } from './ExampleImageDisplay';
@@ -6,10 +6,10 @@ import { ExampleImageDisplay } from './ExampleImageDisplay';
 type FeedbackDisplayProps = {
     task: ReviewTask;
     feedback: Feedback;
-    rank: string;
+    rankAtReview: string;
 };
 
-export const FeedbackDisplay = ({ task, feedback, rank }: FeedbackDisplayProps) => {
+export const FeedbackDisplay = ({ task, feedback, rankAtReview }: FeedbackDisplayProps) => {
     const isGenerating = task.status === 'processing' && !task.exampleImageUrl;
     const generationFailed = task.status === 'completed' && !task.exampleImageUrl;
     const isAnnotating = task.status === 'processing' && !task.annotatedImageUrl;
@@ -28,10 +28,14 @@ export const FeedbackDisplay = ({ task, feedback, rank }: FeedbackDisplayProps) 
                 </div>
                 <div className="flex items-center gap-4 bg-white/10 p-4 rounded-2xl backdrop-blur-sm">
                     <div className="text-right">
-                        <p className="text-sm opacity-80">現在のランク</p>
-                        <p className="text-2xl font-bold">{rank}</p>
+                        <p className="text-sm opacity-80">審査時のランク</p>
+                        <p className="text-2xl font-bold">{rankAtReview}</p>
                     </div>
-                    <TrendingUp className="w-8 h-8 opacity-80" />
+                    {task.rankChanged ? (
+                        <TrendingUp className="w-8 h-8 text-green-300" />
+                    ) : (
+                        <Equal className="w-8 h-8 opacity-60" />
+                    )}
                 </div>
             </div>
 

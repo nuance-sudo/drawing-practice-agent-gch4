@@ -9,9 +9,9 @@ service cloud.firestore {
       allow write: if false; // サーバーサイドのみ
     }
 
-    // ユーザーランクコレクション
-    // ユーザーは自分のランクのみ読み取り可能
-    match /user_ranks/{userId} {
+    // ユーザードキュメント（ランク情報等）
+    // ユーザーは自分のドキュメントのみ読み取り可能
+    match /users/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if false; // サーバーサイドのみ
     }

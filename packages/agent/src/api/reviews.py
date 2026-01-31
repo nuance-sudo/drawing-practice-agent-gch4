@@ -93,6 +93,7 @@ async def process_review_task(task_id: str, user_id: str, image_url: str) -> Non
                     user_id=user_id,
                     current_rank=Rank.KYU_10,
                     current_score=analysis.get("overall_score"),
+                    rank_changed=False,
                 )
 
             # フィードバック生成 (Markdown含む)
@@ -117,6 +118,7 @@ async def process_review_task(task_id: str, user_id: str, image_url: str) -> Non
                 feedback=feedback_data,
                 score=dessin_analysis.overall_score,
                 tags=dessin_analysis.tags,
+                rank_changed=user_rank.rank_changed,
             )
 
             # アノテーション画像生成（Cloud Function呼び出し）
@@ -175,6 +177,7 @@ async def process_review_task(task_id: str, user_id: str, image_url: str) -> Non
                     feedback=feedback_data,
                     score=dessin_analysis.overall_score,
                     tags=dessin_analysis.tags,
+                    rank_changed=user_rank.rank_changed,
                 )
         else:
             # 失敗時：エラーステータスに更新
@@ -233,10 +236,25 @@ async def create_review(
     """
     service = get_task_service()
 
+    # ユーザーの現在のランクを取得（審査実行時点のランクとして保存）
+    from src.models.rank import Rank
+    rank_at_review: str | None = None
+    try:
+        rank_service = get_rank_service()
+        user_rank_info = rank_service.get_user_rank(current_user.user_id)
+        if user_rank_info:
+            rank_at_review = user_rank_info.current_rank.label
+        else:
+            rank_at_review = Rank.KYU_10.label  # デフォルト: 10級
+    except Exception as e:
+        logger.warn("rank_fetch_failed_at_create", user_id=current_user.user_id, error=str(e))
+        rank_at_review = Rank.KYU_10.label  # フォールバック: 10級
+
     task = service.create_task(
         user_id=current_user.user_id,  # 認証済みユーザーから取得
         image_url=request.image_url,
         example_image_url=request.example_image_url,
+        rank_at_review=rank_at_review,
     )
 
     # バックグラウンドでエージェント分析を開始
@@ -251,6 +269,7 @@ async def create_review(
         "review_created",
         task_id=task.task_id,
         user_id=task.user_id,
+        rank_at_review=rank_at_review,
     )
 
     return ReviewTaskResponse.from_task(task)

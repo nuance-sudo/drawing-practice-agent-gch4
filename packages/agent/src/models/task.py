@@ -41,6 +41,12 @@ class ReviewTask(BaseModel):
     feedback: dict[str, object] | None = Field(default=None, description="フィードバックデータ")
     score: float | None = Field(default=None, ge=0, le=100, description="総合スコア (0-100)")
     tags: list[str] | None = Field(default=None, description="モチーフタグ")
+    rank_at_review: str | None = Field(
+        default=None, description="審査実行時のランク（例: '10級', '1段'）"
+    )
+    rank_changed: bool | None = Field(
+        default=None, description="審査後にランクが変動したか（True=昇格、False=維持・未判定）"
+    )
     error_message: str | None = Field(
         default=None, description="エラー時のメッセージ", max_length=1000
     )
@@ -143,6 +149,8 @@ class ReviewTaskResponse(BaseModel):
     feedback: dict[str, object] | None = Field(default=None, description="フィードバックデータ")
     score: float | None = Field(default=None, description="総合スコア")
     tags: list[str] | None = Field(default=None, description="モチーフタグ")
+    rank_at_review: str | None = Field(default=None, description="審査実行時のランク")
+    rank_changed: bool | None = Field(default=None, description="審査後にランクが変動したか")
     error_message: str | None = Field(default=None, description="エラー時のメッセージ")
     created_at: str = Field(..., description="作成日時（ISO 8601形式）")
     updated_at: str = Field(..., description="更新日時（ISO 8601形式）")
@@ -161,6 +169,8 @@ class ReviewTaskResponse(BaseModel):
             feedback=task.feedback,
             score=task.score,
             tags=task.tags,
+            rank_at_review=task.rank_at_review,
+            rank_changed=task.rank_changed,
             error_message=task.error_message,
             created_at=task.created_at.isoformat(),
             updated_at=task.updated_at.isoformat(),

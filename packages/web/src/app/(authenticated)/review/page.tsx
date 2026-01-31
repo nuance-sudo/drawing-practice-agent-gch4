@@ -82,7 +82,7 @@ function ReviewContent() {
                     <FeedbackDisplay
                         task={task}
                         feedback={task.feedback}
-                        rank={rank?.label ?? '10級'}
+                        rankAtReview={task.rankAtReview ?? rank?.label ?? '10級'}
                     />
                 ) : (
                     <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 text-center max-w-md mx-auto">
