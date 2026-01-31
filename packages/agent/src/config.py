@@ -42,9 +42,10 @@ class Settings(BaseSettings):
     cdn_base_url: str = ""
 
     image_generation_function_url: str = ""  # Cloud Run Function URL
+    annotation_function_url: str = ""  # Cloud Run Function URL
 
     # Gemini設定
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3-flash-preview"
 
     gemini_max_output_tokens: int = 32000
     gemini_temperature: float = 1.0

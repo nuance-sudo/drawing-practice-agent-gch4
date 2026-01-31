@@ -17,6 +17,7 @@ from src.models.task import (
     TaskStatus,
 )
 from src.services.feedback_service import get_feedback_service
+from src.services.annotation_service import get_annotation_service
 from src.services.image_generation_service import get_image_generation_service
 from src.services.rank_service import get_rank_service
 from src.services.task_service import get_task_service
@@ -118,17 +119,46 @@ async def process_review_task(task_id: str, user_id: str, image_url: str) -> Non
                 tags=dessin_analysis.tags,
             )
 
-            # お手本画像生成（Cloud Function呼び出し）
+            # アノテーション画像生成（Cloud Function呼び出し）
+            annotated_image_url: str | None = None
             try:
-                logger.info("example_image_generation_request_started", task_id=task_id)
-                image_generation_service = get_image_generation_service()
-                
-                await image_generation_service.generate_example_image(
+                logger.info("annotation_generation_request_started", task_id=task_id)
+                annotation_service = get_annotation_service()
+                annotated_image_url = await annotation_service.generate_annotated_image(
                     task_id=task_id,
                     original_image_url=image_url,
                     analysis=dessin_analysis,
                     user_rank=user_rank,
-                    motif_tags=dessin_analysis.tags
+                    motif_tags=dessin_analysis.tags,
+                )
+                if annotated_image_url:
+                    logger.info("annotation_generation_completed", task_id=task_id, annotated_image_url=annotated_image_url)
+                else:
+                    logger.warning("annotation_generation_returned_none", task_id=task_id)
+            except Exception as e:
+                logger.error(
+                    "annotation_generation_request_failed",
+                    task_id=task_id,
+                    error=str(e),
+                )
+                # アノテーション生成が失敗しても、お手本画像生成は続行（オリジナル画像のみで）
+
+            # お手本画像生成（Cloud Function呼び出し）
+            try:
+                logger.info(
+                    "example_image_generation_request_started",
+                    task_id=task_id,
+                    has_annotated_image=bool(annotated_image_url),
+                )
+                image_generation_service = get_image_generation_service()
+                
+                await image_generation_service.generate_example_image(
+                    task_id=task_id,
+                    user_id=user_id,
+                    original_image_url=image_url,
+                    analysis=dessin_analysis,
+                    motif_tags=dessin_analysis.tags,
+                    annotated_image_url=annotated_image_url,
                 )
                 
                 logger.info("example_image_generation_request_completed", task_id=task_id)

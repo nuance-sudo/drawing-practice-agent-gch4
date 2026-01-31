@@ -32,6 +32,9 @@ class ReviewTask(BaseModel):
     user_id: str = Field(..., description="ユーザーID", min_length=1, max_length=100)
     status: TaskStatus = Field(default=TaskStatus.PENDING, description="タスクステータス")
     image_url: str = Field(..., description="元画像のURL（Cloud Storage/CDNのみ）")
+    annotated_image_url: str | None = Field(
+        default=None, description="アノテーション画像のURL（Cloud Storage/CDNのみ）"
+    )
     example_image_url: str | None = Field(
         default=None, description="お手本画像のURL（Cloud Storage/CDNのみ）"
     )
@@ -44,7 +47,7 @@ class ReviewTask(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="作成日時")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新日時")
 
-    @field_validator("image_url", "example_image_url", mode="before")
+    @field_validator("image_url", "annotated_image_url", "example_image_url", mode="before")
     @classmethod
     def validate_url(cls, v: str | None) -> str | None:
         """URLのホスト名が許可リストに含まれるか検証（完全一致）"""
@@ -135,6 +138,7 @@ class ReviewTaskResponse(BaseModel):
     user_id: str = Field(..., description="ユーザーID")
     status: str = Field(..., description="タスクステータス")
     image_url: str = Field(..., description="元画像のURL")
+    annotated_image_url: str | None = Field(default=None, description="アノテーション画像のURL")
     example_image_url: str | None = Field(default=None, description="お手本画像のURL")
     feedback: dict[str, object] | None = Field(default=None, description="フィードバックデータ")
     score: float | None = Field(default=None, description="総合スコア")
@@ -152,6 +156,7 @@ class ReviewTaskResponse(BaseModel):
             user_id=task.user_id,
             status=str(status_value),
             image_url=task.image_url,
+            annotated_image_url=task.annotated_image_url,
             example_image_url=task.example_image_url,
             feedback=task.feedback,
             score=task.score,

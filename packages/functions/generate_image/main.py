@@ -35,7 +35,8 @@ PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 OUTPUT_BUCKET_NAME = os.environ.get("OUTPUT_BUCKET_NAME")
 COMPLETE_TASK_FUNCTION_URL = os.environ.get("COMPLETE_TASK_FUNCTION_URL")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-image")
-LOCATION = "us-central1"
+# gemini-2.5-flash-imageはグローバルエンドポイントで利用可能
+LOCATION = "global"
 
 class ImageGenerationError(Exception):
     pass
@@ -44,44 +45,18 @@ class InvalidImageURLError(Exception):
     """URL検証エラー"""
     pass
 
-# Rank Descriptions (Ported from ImageGenerationService)
-RANK_DESCRIPTIONS = {
-    "10級": "初心者レベル：基本的な形の把握、3-4段階の明暗、迷い線を整理した輪郭線",
-    "9級": "9級レベル：単純な図形の正確性、光源の統一、最低限の立体感表現",
-    "8級": "8級レベル：適切な画面配置、明・中・暗の使い分け、表面に沿ったタッチ",
-    "7級": "7級レベル：比率バランスの向上、一貫した光源方向、筆圧の強弱コントロール",
-    "6級": "6級レベル：形の正確性向上、5-7段階の明暗階調、ハッチング技法の基礎",
-    "5級": "5級レベル：しっかりした基礎技術、7-9段階の滑らかな階調、極端な質感の描き分け",
-    "4級": "4級レベル：複合モチーフの固有比率、稜線位置の正確性、素材別タッチの使い分け",
-    "3級": "3級レベル：パースペクティブの理解、反射光と陰影の描き分け、金属・ガラス・木材の質感表現",
-    "2級": "2級レベル：奥行き感のある構図、10段階の繊細な階調、シャープとソフトな線の使い分け",
-    "1級": "1級レベル：重心と動きの表現、空気遠近法の活用、クロスハッチングの高度な組み合わせ",
-    "初段": "初段レベル：意図的な画面構成、無限階調の繊細なコントロール、触覚的リアリティの表現",
-    "2段": "2段レベル：視点誘導のある構図、空気の層と奥行き表現、重さ・温度・柔らかさの表現",
-    "3段": "3段レベル：空間に溶け込む輪郭処理、画面を引き締める強い暗部、一本の線に豊かな表情",
-    "師範代": "師範代レベル：完璧な技術的実行力、「描かないこと」で形や光を表現する高度テクニック",
-    "師範": "師範レベル：芸術的革新性、観る者の感覚を刺激する最高レベルの表現力"
-}
-
-# Base Prompt Template
+# Base Prompt Template - Improvement focused, no rank information
 BASE_PROMPT_TEMPLATE = """
-Create an improved pencil drawing based on the following analysis and target skill level.
+Create an improved pencil drawing that demonstrates how to fix the specific improvement points identified in the analysis.
 
 **Original Drawing Analysis:**
 - Overall Score: {overall_score}/100
-- Current Skill Level: {current_rank_label} (Current Performance: {current_rank})
-- Target Skill Level: {target_rank}
 - Subject Matter: {motif_tags}
 
-**Context:**
-The user is currently at {current_rank_label} level and aiming to improve toward {target_rank} level.
-The example image should demonstrate what the drawing would look like when executed at {target_rank} skill level,
-taking into account the user's current level ({current_rank_label}) and showing appropriate progression.
-
-**Strengths (良い点):**
+**Strengths to Preserve (良い点):**
 {strengths_list}
 
-**Key Areas for Improvement (改善点):**
+**Key Areas for Improvement (改善点) - FOCUS ON CORRECTING THESE:**
 {improvements_list}
 
 **Detailed Technical Feedback:**
@@ -90,85 +65,41 @@ taking into account the user's current level ({current_rank_label}) and showing 
 - **Line Quality (線の質)**: {line_feedback}
 - **Texture (質感表現)**: {texture_feedback}
 
-**Target Technical Standards ({target_rank}):**
-{target_rank_description}
-
-**Primary Focus Areas for Improvement:**
-Focus especially on: {primary_improvement_areas}
-
-**Technical Requirements for {target_rank}:**
-- **Proportion**: Accurate shape representation, proper ratios and balance, clean contour lines
-- **Tonal Range**: {tonal_requirements}
-- **Line Quality**: {line_requirements}
-- **Texture Expression**: {texture_requirements}
-
-**Rank-Based Evaluation Context:**
-- Current Rank ({current_rank_label}): The user's current skill level. Consider what techniques they are likely familiar with.
-- Target Rank ({target_rank}): The next level they should aim for. The example should demonstrate techniques appropriate for this level.
-- Progression: Show clear improvement from {current_rank_label} to {target_rank} level in the identified improvement areas.
+**Primary Focus Areas:**
+Focus especially on correcting: {primary_improvement_areas}
 
 **Drawing Specifications:**
 - Medium: Graphite pencil on paper (realistic academic drawing style)
 - Style: Classical realism with proper pencil techniques
 - Format: Monochrome grayscale with full tonal range
 - Resolution: 1024px, high detail
-- Composition: Similar subject matter but demonstrating clear technical improvements
+- Composition: Same subject matter with the improvement points corrected
 
 **Generation Instructions:**
-Create a pencil drawing that demonstrates the specific improvements mentioned above.
-The drawing should show what this subject would look like when executed at {target_rank} skill level.
-The example should be achievable and inspiring for someone currently at {current_rank_label} level,
-showing clear progression toward {target_rank} level techniques.
+Create a pencil drawing that demonstrates how to CORRECT the specific improvement points mentioned above.
+The drawing should:
+1. Preserve the strengths already present in the original drawing
+2. Show clear corrections for each improvement point listed
+3. Demonstrate what the drawing would look like once the identified issues are fixed
 
-Emphasize the following technical improvements: {specific_improvements}
+Specific corrections needed: {specific_improvements}
 
-The result should be a traditional graphite pencil drawing that clearly demonstrates 
-superior technique in the identified improvement areas while maintaining the same subject matter.
-Ensure the drawing exhibits the technical standards expected at {target_rank} level,
-while being appropriate as a learning reference for someone at {current_rank_label} level.
+The result should be a traditional graphite pencil drawing that clearly shows
+how the identified improvement areas should be corrected, while maintaining
+the subject matter and good elements from the original.
 """
 
-def _get_rank_value(rank_label: str) -> int:
-    """Helper to determine rank numeric value for requirements logic"""
-    # Simplified mapping for logic
-    if "級" in rank_label:
-        try:
-            return 11 - int(rank_label.replace("級", "")) # 10級->1, 1級->10
-        except:
-            return 1
-    if "段" in rank_label:
-        try:
-            return 10 + int(rank_label.replace("段", "")) # 初段(1)->11
-        except:
-            if rank_label == "初段": return 11
-            return 11
-    if "師範" in rank_label:
-        return 14
-    return 1
+# Annotated Image Instruction - Added when annotated image is provided
+ANNOTATED_IMAGE_INSTRUCTION = """
+**IMPORTANT - Annotated Reference Image:**
+A second image is provided showing the original drawing with colored bounding boxes and numbered circles.
+These annotations highlight specific areas that need improvement:
+- Each numbered circle corresponds to an improvement point listed above
+- Focus especially on correcting the issues in the areas marked by bounding boxes
+- Use the annotations as a visual guide to understand which parts of the drawing need the most attention
 
-def _get_tonal_requirements(rank_label: str) -> str:
-    val = _get_rank_value(rank_label)
-    if val <= 4: return "3-7 distinct tonal values, consistent light source direction, basic form shadows" # 10-7級
-    if val <= 7: return "5-7 distinct tonal values, basic hatching" # 6-4級
-    if val <= 10: return "7-10 smooth gradations, accurate shadow edge placement, reflected light awareness" # 3-1級
-    if val <= 13: return "Infinite subtle gradations, atmospheric perspective, strong dark values for contrast" # 段
-    return "Perfect tonal control, air layers and spatial depth, masterful use of 'black' quality"
-
-def _get_line_requirements(rank_label: str) -> str:
-    val = _get_rank_value(rank_label)
-    if val <= 4: return "Varied pressure control, clean single lines"
-    if val <= 7: return "Basic hatching techniques, organized contour lines"
-    if val <= 10: return "Sharp and soft line variations, cross-hatching combinations, surface-following strokes"
-    if val <= 13: return "Expressive line quality with entry and exit, advanced hatching density control"
-    return "Rich expression within single lines, masterful use of negative space and 'not drawing'"
-
-def _get_texture_requirements(rank_label: str) -> str:
-    val = _get_rank_value(rank_label)
-    if val <= 4: return "Basic material impression"
-    if val <= 7: return "Basic material differentiation (smooth vs rough), surface-appropriate strokes"
-    if val <= 10: return "Metal, glass, wood, fabric distinctions, appropriate pencil hardness usage"
-    if val <= 13: return "Weight, temperature, softness expression, tactile reality that engages senses"
-    return "Complete sensory engagement, innovative textural expression, revolutionary techniques"
+The generated example should show clear improvements in all annotated areas.
+"""
 
 def _validate_image_url(url: str) -> None:
     """
@@ -225,7 +156,8 @@ def _get_mime_type_from_url(url: str) -> str:
         return "image/jpeg"
 
 
-def create_generation_prompt(analysis: Dict[str, Any], target_rank: str, current_rank_label: str, motif_tags: List[str]) -> str:
+def create_generation_prompt(analysis: Dict[str, Any], motif_tags: List[str], has_annotated_image: bool = False) -> str:
+    """改善点にフォーカスした画像生成プロンプトを作成"""
     improvements_list = "\n".join([f"- {improvement}" for improvement in analysis.get("improvements", [])])
     strengths_list = "\n".join([f"- {strength}" for strength in analysis.get("strengths", [])])
     
@@ -280,11 +212,8 @@ def create_generation_prompt(analysis: Dict[str, Any], target_rank: str, current
     
     specific_improvements_text = ", ".join(specific_improvements) if specific_improvements else "overall refinement"
 
-    return BASE_PROMPT_TEMPLATE.format(
+    prompt = BASE_PROMPT_TEMPLATE.format(
         overall_score=analysis.get("overall_score", 0),
-        current_rank_label=current_rank_label,
-        current_rank=f"{current_rank_label} (Score: {analysis.get('overall_score', 0)})",
-        target_rank=target_rank,
         motif_tags=", ".join(motif_tags),
         strengths_list=strengths_list,
         improvements_list=improvements_list,
@@ -292,15 +221,18 @@ def create_generation_prompt(analysis: Dict[str, Any], target_rank: str, current
         tone_feedback=tone_feedback,
         line_feedback=line_feedback,
         texture_feedback=texture_feedback,
-        target_rank_description=RANK_DESCRIPTIONS.get(target_rank, ""),
         primary_improvement_areas=primary_improvement_areas,
         specific_improvements=specific_improvements_text,
-        tonal_requirements=_get_tonal_requirements(target_rank),
-        line_requirements=_get_line_requirements(target_rank),
-        texture_requirements=_get_texture_requirements(target_rank)
     )
+    
+    # Add annotated image instruction if annotated image is provided
+    if has_annotated_image:
+        prompt += "\n\n" + ANNOTATED_IMAGE_INSTRUCTION
+    
+    return prompt
 
-async def generate_image(prompt: str, original_image_data: bytes, mime_type: str = "image/jpeg", max_retries: int = 3) -> bytes:
+
+async def generate_image(prompt: str, original_image_data: bytes, annotated_image_data: Optional[bytes] = None, mime_type: str = "image/jpeg", max_retries: int = 3) -> bytes:
     client = genai.Client(
         vertexai=True,
         project=PROJECT_ID,
@@ -310,77 +242,95 @@ async def generate_image(prompt: str, original_image_data: bytes, mime_type: str
     # 公式ドキュメントの例に合わせて、bytesからPIL Imageに変換
     # Pythonの例: contents=[prompt, image] の形式で、imageはPIL Imageオブジェクト
     # mime_typeは現在の実装では使用されないが、将来の拡張のために保持
-    with Image.open(BytesIO(original_image_data)) as image:
-        for attempt in range(max_retries):
+    with Image.open(BytesIO(original_image_data)) as original_image:
+        # Build contents list
+        contents: list = [prompt, original_image]
+        
+        # Add annotated image if provided
+        annotated_image = None
+        if annotated_image_data:
             try:
-                # Use generate_content for Gemini 2.5 Flash Image with native image output
-                # 公式ドキュメントの例に合わせて、シンプルな形式でcontentsを渡す
-                # contents=[prompt, image] の形式（imageはPIL Imageオブジェクト）
-                response = client.models.generate_content(
-                    model=GEMINI_MODEL,
-                    contents=[prompt, image],
-                    config=types.GenerateContentConfig(
-                        response_modalities=["IMAGE"],
-                        safety_settings=[
-                            types.SafetySetting(
-                                category="HARM_CATEGORY_HATE_SPEECH",
-                                threshold="BLOCK_MEDIUM_AND_ABOVE"
-                            ),
-                            types.SafetySetting(
-                                category="HARM_CATEGORY_DANGEROUS_CONTENT",
-                                threshold="BLOCK_MEDIUM_AND_ABOVE"
-                            ),
-                            types.SafetySetting(
-                                category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                                threshold="BLOCK_MEDIUM_AND_ABOVE"
-                            ),
-                            types.SafetySetting(
-                                category="HARM_CATEGORY_HARASSMENT",
-                                threshold="BLOCK_MEDIUM_AND_ABOVE"
-                            ),
-                        ],
-                    )
-                )
-                
-                # Extract image from response parts
-                if response.candidates:
-                    for candidate in response.candidates:
-                        if candidate.content and candidate.content.parts:
-                            for part in candidate.content.parts:
-                                if part.inline_data and part.inline_data.data:
-                                    return part.inline_data.data
-
-                # Log the actual response structure for debugging if we fail
-                logger.error("image_generation_response_invalid", 
-                             response_candidates=len(response.candidates) if response.candidates else 0,
-                             detail="No inline_data found in candidates")
-
-                raise ImageGenerationError("No image data found in response")
-                
+                annotated_image = Image.open(BytesIO(annotated_image_data))
+                contents.append(annotated_image)
+                logger.info("annotated_image_included_in_generation")
             except Exception as e:
-                error_type = type(e).__name__
-                error_message = str(e)
-                logger.error("image_generation_failed", 
-                            error=error_message,
-                            error_type=error_type,
-                            attempt=attempt+1,
-                            max_retries=max_retries)
-                
-                if attempt == max_retries - 1:
-                    logger.error("image_generation_failed_final", 
-                                error=error_message, 
+                logger.warning("failed_to_open_annotated_image", error=str(e))
+        
+        try:
+            for attempt in range(max_retries):
+                try:
+                    # Use generate_content for Gemini 2.5 Flash Image with native image output
+                    # 公式ドキュメントの例に合わせて、シンプルな形式でcontentsを渡す
+                    # contents=[prompt, original_image] or [prompt, original_image, annotated_image]
+                    response = client.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            response_modalities=["IMAGE"],
+                            safety_settings=[
+                                types.SafetySetting(
+                                    category="HARM_CATEGORY_HATE_SPEECH",
+                                    threshold="BLOCK_MEDIUM_AND_ABOVE"
+                                ),
+                                types.SafetySetting(
+                                    category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                                    threshold="BLOCK_MEDIUM_AND_ABOVE"
+                                ),
+                                types.SafetySetting(
+                                    category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                                    threshold="BLOCK_MEDIUM_AND_ABOVE"
+                                ),
+                                types.SafetySetting(
+                                    category="HARM_CATEGORY_HARASSMENT",
+                                    threshold="BLOCK_MEDIUM_AND_ABOVE"
+                                ),
+                            ],
+                        )
+                    )
+                    
+                    # Extract image from response parts
+                    if response.candidates:
+                        for candidate in response.candidates:
+                            if candidate.content and candidate.content.parts:
+                                for part in candidate.content.parts:
+                                    if part.inline_data and part.inline_data.data:
+                                        return part.inline_data.data
+
+                    # Log the actual response structure for debugging if we fail
+                    logger.error("image_generation_response_invalid", 
+                                 response_candidates=len(response.candidates) if response.candidates else 0,
+                                 detail="No inline_data found in candidates")
+
+                    raise ImageGenerationError("No image data found in response")
+                    
+                except Exception as e:
+                    error_type = type(e).__name__
+                    error_message = str(e)
+                    logger.error("image_generation_failed", 
+                                error=error_message,
                                 error_type=error_type,
-                                task_attempt=attempt+1)
-                    raise
-                
-                wait_time = 2 ** attempt
-                logger.warning("image_generation_failed_retrying", 
-                               attempt=attempt+1, 
-                               wait_time=wait_time, 
-                               error=error_message,
-                               error_type=error_type)
-                await asyncio.sleep(wait_time)
-                
+                                attempt=attempt+1,
+                                max_retries=max_retries)
+                    
+                    if attempt == max_retries - 1:
+                        logger.error("image_generation_failed_final", 
+                                    error=error_message, 
+                                    error_type=error_type,
+                                    task_attempt=attempt+1)
+                        raise
+                    
+                    wait_time = 2 ** attempt
+                    logger.warning("image_generation_failed_retrying", 
+                                   attempt=attempt+1, 
+                                   wait_time=wait_time, 
+                                   error=error_message,
+                                   error_type=error_type)
+                    await asyncio.sleep(wait_time)
+        finally:
+            # Close annotated image if it was opened
+            if annotated_image:
+                annotated_image.close()
+                    
     # Should not reach here
     raise ImageGenerationError("Retry loop exhausted without result")
 
@@ -400,18 +350,18 @@ def generate_example_image(request):
         task_id = request_json.get("task_id")
         user_id = request_json.get("user_id")
         original_image_url = request_json.get("original_image_url")
+        annotated_image_url = request_json.get("annotated_image_url")  # Optional
         analysis = request_json.get("analysis")
-        target_rank_label = request_json.get("target_rank_label", "5級")
-        current_rank_label = request_json.get("current_rank_label", "10級")
         motif_tags = request_json.get("motif_tags", [])
 
         if not all([task_id, user_id, original_image_url, analysis]):
             return {"error": "Missing required fields"}, 400
 
-        logger.info("function_started", task_id=task_id, user_id=user_id)
+        logger.info("function_started", task_id=task_id, user_id=user_id, has_annotated_image=bool(annotated_image_url))
 
-        # Generate Prompt
-        prompt = create_generation_prompt(analysis, target_rank_label, current_rank_label, motif_tags)
+        # Generate Prompt (improvement-focused, no rank information)
+        has_annotated_image = bool(annotated_image_url)
+        prompt = create_generation_prompt(analysis, motif_tags, has_annotated_image)
         
         # Initialize storage client for saving generated image
         storage_client = storage.Client()
@@ -429,6 +379,7 @@ def generate_example_image(request):
             max_size = 10 * 1024 * 1024  # 10MB
             
             async with aiohttp.ClientSession(timeout=timeout) as session:
+                # Fetch original image
                 async with session.get(original_image_url) as resp:
                     if resp.status != 200:
                         raise ImageGenerationError(f"Failed to fetch original image: {resp.status}")
@@ -444,12 +395,33 @@ def generate_example_image(request):
                         original_image_data += chunk
                         if len(original_image_data) > max_size:
                             raise ImageGenerationError(f"Image size exceeds limit: {len(original_image_data)} bytes")
+                
+                # Fetch annotated image if provided
+                annotated_image_data: bytes | None = None
+                if annotated_image_url:
+                    try:
+                        _validate_image_url(annotated_image_url)
+                        async with session.get(annotated_image_url) as annot_resp:
+                            if annot_resp.status == 200:
+                                annotated_image_data = b''
+                                async for chunk in annot_resp.content.iter_chunked(8192):
+                                    annotated_image_data += chunk
+                                    if len(annotated_image_data) > max_size:
+                                        logger.warning("annotated_image_too_large", task_id=task_id)
+                                        annotated_image_data = None
+                                        break
+                                if annotated_image_data:
+                                    logger.info("annotated_image_fetched", task_id=task_id, size=len(annotated_image_data))
+                            else:
+                                logger.warning("failed_to_fetch_annotated_image", task_id=task_id, status=annot_resp.status)
+                    except Exception as e:
+                        logger.warning("annotated_image_fetch_error", task_id=task_id, error=str(e))
 
             # 2. Determine MIME type from URL
             mime_type = _get_mime_type_from_url(original_image_url)
 
-            # 3. Generate
-            generated_bytes = await generate_image(prompt, original_image_data, mime_type)
+            # 3. Generate (with annotated image if available)
+            generated_bytes = await generate_image(prompt, original_image_data, annotated_image_data, mime_type)
             
             # 生成された画像のサイズを取得してログに記録
             try:

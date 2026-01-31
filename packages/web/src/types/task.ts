@@ -5,6 +5,7 @@ export type ReviewTask = {
   userId: string;
   status: TaskStatus;
   imageUrl: string;
+  annotatedImageUrl?: string;
   exampleImageUrl?: string;
   feedback?: Feedback;
   score?: number;

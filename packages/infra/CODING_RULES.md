@@ -85,7 +85,7 @@ set -euo pipefail
 
 # ✅ 良い例
 PROJECT_ID="${PROJECT_ID:-}"
-REGION="${REGION:-asia-northeast1}"
+REGION="${REGION:-us-central1}"
 
 # 関数定義
 deploy_agent() {

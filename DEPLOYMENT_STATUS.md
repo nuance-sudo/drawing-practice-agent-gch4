@@ -24,7 +24,7 @@
 #### バックエンド (Cloud Run)
 ```bash
 GCP_PROJECT_ID=drawing-practice-agent
-GCP_REGION=asia-northeast1
+GCP_REGION=global
 FIRESTORE_DATABASE=(default)
 STORAGE_BUCKET=drawing-practice-agent-gch4
 CDN_BASE_URL=https://storage.googleapis.com/drawing-practice-agent-gch4
@@ -57,17 +57,17 @@ NEXT_PUBLIC_API_BASE_URL=https://dessin-coaching-agent-<hash>-an.a.run.app
 cd packages/agent
 
 # Cloud Buildでビルド & プッシュ
-gcloud builds submit --region=asia-northeast1 \
-  --tag asia-northeast1-docker.pkg.dev/drawing-practice-agent/drawing-practice-agent/agent:latest \
+gcloud builds submit --region=us-central1 \
+  --tag us-central1-docker.pkg.dev/drawing-practice-agent/drawing-practice-agent/agent:latest \
   --project=drawing-practice-agent .
 
 # Cloud Runにデプロイ
 gcloud run deploy dessin-coaching-agent \
-  --image asia-northeast1-docker.pkg.dev/drawing-practice-agent/drawing-practice-agent/agent:latest \
+  --image us-central1-docker.pkg.dev/drawing-practice-agent/drawing-practice-agent/agent:latest \
   --platform managed \
-  --region asia-northeast1 \
+  --region us-central1 \
   --project=drawing-practice-agent \
-  --set-env-vars="GCP_PROJECT_ID=drawing-practice-agent,GCP_REGION=asia-northeast1,FIRESTORE_DATABASE=(default),STORAGE_BUCKET=drawing-practice-agent-gch4,CDN_BASE_URL=https://storage.googleapis.com/drawing-practice-agent-gch4,IMAGE_GENERATION_ENABLED=true,IMAGE_GENERATION_MAX_RETRIES=3,IMAGE_GENERATION_TIMEOUT=180,GEMINI_MODEL=gemini-2.5-flash,GEMINI_IMAGE_MODEL=gemini-2.5-flash-image,DEBUG=false,LOG_LEVEL=INFO"
+  --set-env-vars="GCP_PROJECT_ID=drawing-practice-agent,GCP_REGION=us-central1,FIRESTORE_DATABASE=(default),STORAGE_BUCKET=drawing-practice-agent-gch4,CDN_BASE_URL=https://storage.googleapis.com/drawing-practice-agent-gch4,IMAGE_GENERATION_ENABLED=true,IMAGE_GENERATION_MAX_RETRIES=3,IMAGE_GENERATION_TIMEOUT=180,GEMINI_MODEL=gemini-2.5-flash,GEMINI_IMAGE_MODEL=gemini-2.5-flash-image,DEBUG=false,LOG_LEVEL=INFO,CORS_ORIGINS=https://drawing-practice-agent.web.app,https://drawing-practice-agent.firebaseapp.com,http://localhost:3000,http://localhost:5173"
 ```
 
 ### 2. フロントエンドデプロイ (Firebase Hosting)

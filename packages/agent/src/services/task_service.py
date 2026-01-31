@@ -155,6 +155,7 @@ class TaskService:
         tags: list[str] | None = None,
         error_message: str | None = None,
         example_image_url: str | None = None,
+        annotated_image_url: str | None = None,
     ) -> ReviewTask:
         """タスクステータスを更新
 
@@ -195,6 +196,8 @@ class TaskService:
             update_data["error_message"] = error_message
         if example_image_url is not None:
             update_data["example_image_url"] = example_image_url
+        if annotated_image_url is not None:
+            update_data["annotated_image_url"] = annotated_image_url
 
         doc_ref.update(update_data)
 
@@ -243,6 +246,7 @@ class TaskService:
             "user_id": task.user_id,
             "status": task.status.value if isinstance(task.status, TaskStatus) else task.status,
             "image_url": task.image_url,
+            "annotated_image_url": task.annotated_image_url,
             "example_image_url": task.example_image_url,
             "feedback": task.feedback,
             "score": task.score,
@@ -287,6 +291,12 @@ class TaskService:
         if example_url_value is not None:
             example_image_url = str(example_url_value)
 
+        # annotated_image_urlの型処理
+        annotated_url_value = data.get("annotated_image_url")
+        annotated_image_url: str | None = None
+        if annotated_url_value is not None:
+            annotated_image_url = str(annotated_url_value)
+
         # scoreの型処理
         score_value = data.get("score")
         score: float | None = None
@@ -304,6 +314,7 @@ class TaskService:
             user_id=str(data.get("user_id", "")),
             status=status,
             image_url=str(data.get("image_url", "")),
+            annotated_image_url=annotated_image_url,
             example_image_url=example_image_url,
             feedback=feedback,
             score=score,
