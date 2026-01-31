@@ -13,37 +13,33 @@ class TestRankService(unittest.TestCase):
         self.mock_db.collection.return_value = self.mock_collection
         self.service = RankService(db=self.mock_db)
 
-    def test_calculate_rank(self):
-        # 境界値テスト: 高スコア獲得数に基づくランク判定
+    def test_get_next_rank(self):
+        """1つ上のランクを取得するテスト"""
+        # 10級 -> 9級
+        self.assertEqual(self.service._get_next_rank(Rank.KYU_10), Rank.KYU_9)
         
-        # 0回 -> 10級
-        self.assertEqual(self.service.calculate_rank(0), Rank.KYU_10)
+        # 9級 -> 8級
+        self.assertEqual(self.service._get_next_rank(Rank.KYU_9), Rank.KYU_8)
         
-        # 1回 -> 9級
-        self.assertEqual(self.service.calculate_rank(1), Rank.KYU_9)
+        # 1級 -> 初段
+        self.assertEqual(self.service._get_next_rank(Rank.KYU_1), Rank.DAN_1)
         
-        # 3回 -> 7級
-        self.assertEqual(self.service.calculate_rank(3), Rank.KYU_7)
+        # 初段 -> 二段
+        self.assertEqual(self.service._get_next_rank(Rank.DAN_1), Rank.DAN_2)
         
-        # 10回 -> 1級
-        self.assertEqual(self.service.calculate_rank(10), Rank.KYU_1)
+        # 師範代 -> 師範
+        self.assertEqual(self.service._get_next_rank(Rank.SHIHAN_DAI), Rank.SHIHAN)
         
-        # 12回 -> 初段
-        self.assertEqual(self.service.calculate_rank(12), Rank.DAN_1)
-        
-        # 30回 -> 師範
-        self.assertEqual(self.service.calculate_rank(30), Rank.SHIHAN)
-        
-        # 100回 -> 師範 (上限)
-        self.assertEqual(self.service.calculate_rank(100), Rank.SHIHAN)
+        # 師範 -> None (最高ランク)
+        self.assertIsNone(self.service._get_next_rank(Rank.SHIHAN))
 
     def test_update_user_rank_initial_high_score(self):
-        """初回ランク更新 (80点以上) -> カウント1で9級へ"""
+        """初回ランク更新 (80点以上) -> 10級から9級へ昇格"""
         user_id = "test_user"
         score = 85.0  # High score
         task_id = "test_task"
 
-        # ユーザーが存在しない場合
+        # ユーザーが存在しない場合（初期ランクは10級）
         mock_user_ref = MagicMock()
         mock_user_doc = MagicMock()
         mock_user_doc.exists = False
@@ -59,8 +55,8 @@ class TestRankService(unittest.TestCase):
 
         result = self.service.update_user_rank(user_id, score, task_id)
 
-        # 結果検証
-        self.assertEqual(result.current_rank, Rank.KYU_9) # 1 high score -> 9級
+        # 結果検証: 80点以上なので10級から9級に昇格
+        self.assertEqual(result.current_rank, Rank.KYU_9)
         self.assertEqual(result.current_score, score)
         self.assertEqual(result.total_submissions, 1)
         self.assertEqual(len(result.high_scores), 1)
@@ -76,12 +72,12 @@ class TestRankService(unittest.TestCase):
         }, merge=True)
 
     def test_update_user_rank_increment(self):
-        """既存ユーザーのランク更新"""
+        """既存ユーザーのランク更新 (80点以上で1ランクアップ)"""
         user_id = "test_user"
         score = 90.0
         task_id = "test_task"
 
-        # 既存ユーザー情報 (9級, 過去1回80点以上)
+        # 既存ユーザー情報 (9級)
         mock_user_ref = MagicMock()
         mock_user_doc = MagicMock()
         mock_user_doc.exists = True
@@ -100,13 +96,13 @@ class TestRankService(unittest.TestCase):
 
         self.mock_collection.document.return_value = mock_user_ref
 
-        # 今回も80点以上 -> high_scoresが2つになる -> 8級
+        # 今回も80点以上 -> 9級から8級に昇格
         result = self.service.update_user_rank(user_id, score, task_id)
 
-        # 結果検証
-        self.assertEqual(result.current_rank, Rank.KYU_8) # 2 high scores -> 8級
+        # 結果検証: 80点以上なので9級から8級に昇格
+        self.assertEqual(result.current_rank, Rank.KYU_8)
         self.assertEqual(result.total_submissions, 6)
-        self.assertEqual(len(result.high_scores), 2)
+        self.assertEqual(len(result.high_scores), 2)  # 高スコアリストに追加
         
     def test_update_user_rank_no_high_score(self):
         """80点未満の場合、ランクは上がらないが提出回数は増える"""
@@ -114,7 +110,7 @@ class TestRankService(unittest.TestCase):
         score = 79.0 # Not a high score
         task_id = "test_task"
 
-        # 既存ユーザー情報 (9級, 過去1回80点以上)
+        # 既存ユーザー情報 (9級)
         mock_user_ref = MagicMock()
         mock_user_doc = MagicMock()
         mock_user_doc.exists = True
@@ -131,15 +127,49 @@ class TestRankService(unittest.TestCase):
 
         self.mock_collection.document.return_value = mock_user_ref
 
-        # 今回79点 -> high_scoresの数は変わらず1 -> ランクは9級のまま
+        # 今回79点 -> 80点未満なのでランクは9級のまま
         result = self.service.update_user_rank(user_id, score, task_id)
 
         # 結果検証
         self.assertEqual(result.current_rank, Rank.KYU_9)
         self.assertEqual(result.total_submissions, 6)
-        self.assertEqual(len(result.high_scores), 1)
+        self.assertEqual(len(result.high_scores), 1)  # 高スコアリストに追加されない
         
         # ランクが変わっていないので履歴保存は呼ばれない (初回でもない)
+        mock_history_col.document.assert_not_called()
+    
+    def test_update_user_rank_max_rank(self):
+        """師範（最高ランク）の場合、80点以上でも昇格しない"""
+        user_id = "test_user"
+        score = 95.0  # High score
+        task_id = "test_task"
+
+        # 既存ユーザー情報 (師範)
+        mock_user_ref = MagicMock()
+        mock_user_doc = MagicMock()
+        mock_user_doc.exists = True
+        mock_user_doc.to_dict.return_value = {
+            "rank": Rank.SHIHAN.value,
+            "latest_score": 90.0,
+            "total_submissions": 50,
+            "high_scores": [85.0, 88.0, 90.0]
+        }
+        mock_user_ref.get.return_value = mock_user_doc
+        
+        mock_history_col = MagicMock()
+        mock_user_ref.collection.return_value = mock_history_col
+
+        self.mock_collection.document.return_value = mock_user_ref
+
+        # 今回95点 -> 80点以上だが師範が最高ランクなので昇格しない
+        result = self.service.update_user_rank(user_id, score, task_id)
+
+        # 結果検証
+        self.assertEqual(result.current_rank, Rank.SHIHAN)  # 師範のまま
+        self.assertEqual(result.total_submissions, 51)
+        self.assertEqual(len(result.high_scores), 4)  # 高スコアリストには追加される
+        
+        # ランクが変わっていないので履歴保存は呼ばれない
         mock_history_col.document.assert_not_called()
 
     def test_get_user_rank_exists(self):

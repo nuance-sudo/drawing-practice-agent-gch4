@@ -21,26 +21,6 @@ class RankService:
 
     USERS_COLLECTION = "users"
     RANK_HISTORY_COLLECTION = "rank_history"
-    
-    # ランク昇格に必要な「80点以上の獲得回数」定義
-    # 累積回数で判定する
-    # 10級(Level 1)は初期ランク
-    RANK_CRITERIA = {
-        Rank.KYU_9: 1,
-        Rank.KYU_8: 2,
-        Rank.KYU_7: 3,
-        Rank.KYU_6: 4,
-        Rank.KYU_5: 5,
-        Rank.KYU_4: 6,
-        Rank.KYU_3: 7,
-        Rank.KYU_2: 8,
-        Rank.KYU_1: 10,
-        Rank.DAN_1: 12,
-        Rank.DAN_2: 15,
-        Rank.DAN_3: 20,
-        Rank.SHIHAN_DAI: 25,
-        Rank.SHIHAN: 30,
-    }
 
     def __init__(self, db: firestore.Client | None = None) -> None:
         """初期化
@@ -57,31 +37,34 @@ class RankService:
             self._db = db
         self._users_collection = self._db.collection(self.USERS_COLLECTION)
 
-    def calculate_rank(self, high_score_count: int) -> Rank:
-        """高スコア獲得回数に基づいてランクを計算する
+    def _get_next_rank(self, current_rank: Rank) -> Rank | None:
+        """現在のランクから1つ上のランクを取得する
 
         Args:
-            high_score_count: 80点以上のを獲得した回数
+            current_rank: 現在のランク
 
         Returns:
-            対応するランク
+            1つ上のランク。最高ランク（師範）の場合はNone
         """
-        # 条件を満たす最大のランクを探す
-        # 降順（師範 -> 9級）でチェックし、最初に見つかった基準を満たすものを選ぶ
-        sorted_criteria = sorted(self.RANK_CRITERIA.items(), key=lambda x: x[0], reverse=True)
+        # 最高ランク（師範）の場合は昇格しない
+        if current_rank == Rank.SHIHAN:
+            return None
         
-        for rank, required_count in sorted_criteria:
-            if high_score_count >= required_count:
-                return rank
+        # 次のランクの値を計算
+        next_rank_value = current_rank.value + 1
         
-        # 基準に満たない場合は10級
-        return Rank.KYU_10
+        # Rank enumから取得
+        try:
+            return Rank(next_rank_value)
+        except ValueError:
+            # 無効な値の場合はNoneを返す
+            return None
 
     def update_user_rank(self, user_id: str, score: float, task_id: str) -> UserRank:
         """ユーザーのランクを更新する
 
         最新のスコアに基づいて情報を更新し、ランク再計算を行う。
-        80点以上のスコアを獲得した場合、カウントが増加し昇格の可能性がある。
+        80点以上のスコアを獲得した場合、1つ上のランクに昇格する。
 
         Args:
             user_id: ユーザーID
@@ -114,12 +97,16 @@ class RankService:
         # 2. 新しい情報を追加
         total_submissions += 1
         
-        # 80点以上なら高スコアリストに追加
+        # 3. ランクを計算（80点以上なら1つ上のランクに昇格）
+        new_rank = current_rank
         if score >= 80:
+            # 80点以上なら高スコアリストに追加
             high_scores.append(score)
-            
-        # 3. 新しいランクを計算
-        new_rank = self.calculate_rank(len(high_scores))
+            # 1つ上のランクに昇格
+            next_rank = self._get_next_rank(current_rank)
+            if next_rank is not None:
+                new_rank = next_rank
+        
         now = datetime.now()
 
         # 4. ユーザー情報を更新
@@ -183,6 +170,7 @@ class RankService:
             current_score=score,
             total_submissions=total_submissions,
             high_scores=high_scores,
+            rank_changed=rank_changed,
             updated_at=now,
         )
 

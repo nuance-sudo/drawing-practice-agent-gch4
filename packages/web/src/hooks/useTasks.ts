@@ -73,6 +73,8 @@ const mapDocToTask = (docSnapshot: DocumentSnapshot<DocumentData>): ReviewTask =
         feedback: feedback,
         score: data.score as number | undefined,
         tags: data.tags as string[] | undefined,
+        rankAtReview: data.rank_at_review as string | undefined,
+        rankChanged: data.rank_changed as boolean | undefined,
         errorMessage: data.error_message as string | undefined,
         createdAt: data.created_at?.toDate?.()?.toISOString() ?? new Date().toISOString(),
         updatedAt: data.updated_at?.toDate?.()?.toISOString() ?? new Date().toISOString(),

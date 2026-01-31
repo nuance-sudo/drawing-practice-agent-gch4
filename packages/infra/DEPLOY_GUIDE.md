@@ -82,6 +82,22 @@ gcloud run deploy dessin-coaching-agent \
    --member="allUsers" \
    --role="roles/run.invoker"
  ```
+
+### 4. Firestoreセキュリティルールのデプロイ
+
+Firestoreのセキュリティルールを更新した場合は、以下のコマンドでデプロイします。
+
+```bash
+firebase deploy --only firestore:rules --project drawing-practice-agent
+```
+
+**必要なコレクションとルール:**
+
+| コレクション | 用途 | 読み取り権限 |
+|-------------|------|-------------|
+| `review_tasks` | 審査タスク | 自分のタスクのみ |
+| `users` | ユーザーランク情報 | 自分のドキュメントのみ |
+| `push_subscriptions` | プッシュ通知設定 | 自分の設定のみ（読み書き可） |
  
  ---
  

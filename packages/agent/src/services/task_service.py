@@ -45,6 +45,7 @@ class TaskService:
         user_id: str,
         image_url: str,
         example_image_url: str | None = None,
+        rank_at_review: str | None = None,
     ) -> ReviewTask:
         """新規タスクを作成
 
@@ -52,6 +53,7 @@ class TaskService:
             user_id: ユーザーID
             image_url: 元画像のURL
             example_image_url: お手本画像のURL（オプション）
+            rank_at_review: 審査実行時のランク（オプション）
 
         Returns:
             作成されたReviewTask
@@ -65,6 +67,7 @@ class TaskService:
             status=TaskStatus.PENDING,
             image_url=image_url,
             example_image_url=example_image_url,
+            rank_at_review=rank_at_review,
             created_at=now,
             updated_at=now,
         )
@@ -156,6 +159,7 @@ class TaskService:
         error_message: str | None = None,
         example_image_url: str | None = None,
         annotated_image_url: str | None = None,
+        rank_changed: bool | None = None,
     ) -> ReviewTask:
         """タスクステータスを更新
 
@@ -198,6 +202,8 @@ class TaskService:
             update_data["example_image_url"] = example_image_url
         if annotated_image_url is not None:
             update_data["annotated_image_url"] = annotated_image_url
+        if rank_changed is not None:
+            update_data["rank_changed"] = rank_changed
 
         doc_ref.update(update_data)
 
@@ -251,6 +257,8 @@ class TaskService:
             "feedback": task.feedback,
             "score": task.score,
             "tags": task.tags,
+            "rank_at_review": task.rank_at_review,
+            "rank_changed": task.rank_changed,
             "error_message": task.error_message,
             "created_at": task.created_at,
             "updated_at": task.updated_at,
@@ -309,6 +317,18 @@ class TaskService:
         if error_message_value is not None:
             error_message = str(error_message_value)
 
+        # rank_at_reviewの型処理
+        rank_at_review_value = data.get("rank_at_review")
+        rank_at_review: str | None = None
+        if rank_at_review_value is not None:
+            rank_at_review = str(rank_at_review_value)
+
+        # rank_changedの型処理
+        rank_changed_value = data.get("rank_changed")
+        rank_changed: bool | None = None
+        if rank_changed_value is not None:
+            rank_changed = bool(rank_changed_value)
+
         return ReviewTask(
             task_id=str(data.get("task_id", "")),
             user_id=str(data.get("user_id", "")),
@@ -319,6 +339,8 @@ class TaskService:
             feedback=feedback,
             score=score,
             tags=tags,
+            rank_at_review=rank_at_review,
+            rank_changed=rank_changed,
             error_message=error_message,
             created_at=created_at if isinstance(created_at, datetime) else datetime.now(),
             updated_at=updated_at if isinstance(updated_at, datetime) else datetime.now(),

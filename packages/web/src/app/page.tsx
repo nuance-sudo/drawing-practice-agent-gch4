@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { LoginButton } from "@/components/login-button";
+import { UserProfileMenu } from "@/components/common/UserProfileMenu";
 import { UploadSection } from "@/components/features/dashboard/UploadSection";
 import { TaskGrid } from "@/components/features/dashboard/TaskGrid";
 import { CalendarFilter } from "@/components/features/dashboard/CalendarFilter";
@@ -58,7 +59,7 @@ export default function Home() {
             <h1 className="text-3xl font-bold text-slate-900">Drawing Practice Agent</h1>
             <p className="text-slate-600 mt-1">デッサンをアップロードして、AIコーチングを受けましょう</p>
           </div>
-          <LoginButton />
+          {user ? <UserProfileMenu /> : <LoginButton />}
         </div>
 
         {loading ? (

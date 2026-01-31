@@ -10,6 +10,8 @@ export type ReviewTask = {
   feedback?: Feedback;
   score?: number;
   tags?: string[];
+  rankAtReview?: string;
+  rankChanged?: boolean;
   errorMessage?: string;
   createdAt: string;
   updatedAt: string;
