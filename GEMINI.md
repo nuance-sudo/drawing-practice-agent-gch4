@@ -300,6 +300,7 @@ graph TD
 
 | スキル名 | 説明 | 呼び出し方 |
 |----------|------|-----------|
+| `aidlc` | AI-DLC（AI-Driven Development Life Cycle）ワークフロー起動。大規模開発・リファクタリング・新規プロジェクト時に使用 | `/aidlc [開発内容]` |
 | `check-package-versions` | Pythonパッケージの最新バージョン確認・更新 | `/check-package-versions` |
 | `pre-deploy-check` | デプロイ前のテスト・構文チェック・リント・型チェック | `/pre-deploy-check` |
 | `code-quality` | コーディング規約・命名規則・スタイリングの確認 | `/code-quality` |
@@ -309,6 +310,8 @@ graph TD
 
 ```
 .agent/skills/
+├── aidlc/
+│   └── SKILL.md
 ├── check-package-versions/
 │   └── SKILL.md
 ├── pre-deploy-check/
