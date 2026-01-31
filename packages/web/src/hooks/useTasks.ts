@@ -188,6 +188,7 @@ export const useTasks = (userId: string | null, filters?: TaskFilters): TasksSta
             notifyListeners();
             return () => { };
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- filtersKey already covers all filter properties via JSON.stringify
     }, [userId, notifyListeners, filtersKey]); // filtersKey uses JSON.stringify(filters)
     return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 };

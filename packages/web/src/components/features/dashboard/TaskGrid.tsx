@@ -1,8 +1,11 @@
 'use client';
 
-import { Loader2, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { Loader2, Clock, CheckCircle2, XCircle, AlertCircle, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import type { ReviewTask } from '@/types/task';
+
+const PAGE_SIZE = 9;
 
 type Props = {
     tasks: ReviewTask[];
@@ -11,6 +14,8 @@ type Props = {
 };
 
 export const TaskGrid = ({ tasks, loading, error }: Props) => {
+    const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
+
     if (loading) {
         return (
             <div className="flex justify-center p-12">
@@ -36,34 +41,58 @@ export const TaskGrid = ({ tasks, loading, error }: Props) => {
         );
     }
 
-    return (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {tasks.map((task: ReviewTask) => (
-                <Link
-                    key={task.taskId}
-                    href={`/review?id=${task.taskId}`}
-                    className="group relative overflow-hidden rounded-2xl bg-white border border-slate-100 shadow-sm transition-all hover:shadow-md hover:border-blue-100 block"
-                >
-                    <div className="aspect-square w-full overflow-hidden bg-slate-100 relative">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                            src={task.imageUrl}
-                            alt="Drawing"
-                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                        <div className="absolute top-3 right-3">
-                            <StatusBadge status={task.status} />
-                        </div>
-                    </div>
+    const displayedTasks = tasks.slice(0, displayCount);
+    const hasMore = displayCount < tasks.length;
+    const remainingCount = tasks.length - displayCount;
 
-                    <div className="p-4">
-                        <div className="flex items-center justify-between text-sm text-slate-500 mb-1">
-                            <span>{new Date(task.createdAt).toLocaleDateString()}</span>
-                            <span>{new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+    const handleLoadMore = () => {
+        setDisplayCount((prev) => Math.min(prev + PAGE_SIZE, tasks.length));
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {displayedTasks.map((task: ReviewTask) => (
+                    <Link
+                        key={task.taskId}
+                        href={`/review?id=${task.taskId}`}
+                        className="group relative overflow-hidden rounded-2xl bg-white border border-slate-100 shadow-sm transition-all hover:shadow-md hover:border-blue-100 block"
+                    >
+                        <div className="aspect-square w-full overflow-hidden bg-slate-100 relative">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={task.imageUrl}
+                                alt="Drawing"
+                                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            />
+                            <div className="absolute top-3 right-3">
+                                <StatusBadge status={task.status} />
+                            </div>
                         </div>
-                    </div>
-                </Link>
-            ))}
+
+                        <div className="p-4">
+                            <div className="flex items-center justify-between text-sm text-slate-500 mb-1">
+                                <span>{new Date(task.createdAt).toLocaleDateString()}</span>
+                                <span>{new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                        </div>
+                    </Link>
+                ))}
+            </div>
+
+            {/* さらに表示ボタン */}
+            {hasMore && (
+                <div className="flex justify-center">
+                    <button
+                        onClick={handleLoadMore}
+                        className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-xl text-slate-700 font-medium shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-all"
+                    >
+                        <ChevronDown className="h-4 w-4" />
+                        <span>さらに表示</span>
+                        <span className="text-slate-400 text-sm">（残り {remainingCount} 件）</span>
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
