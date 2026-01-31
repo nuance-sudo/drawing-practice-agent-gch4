@@ -140,8 +140,11 @@ class AnnotationService:
                 original_url=url,
                 note="Consider using .run.app URL directly in environment variable"
             )
-            # 簡易変換（正確ではない可能性がある）
-            return url.replace(".cloudfunctions.net", ".a.run.app")
+            # 変換後のURL構造を検証
+            converted_url = url.replace(".cloudfunctions.net", ".a.run.app")
+            if not converted_url.startswith("https://") or ".a.run.app" not in converted_url:
+                raise ValueError(f"Invalid URL conversion result: {converted_url}")
+            return converted_url
         return url
 
 
