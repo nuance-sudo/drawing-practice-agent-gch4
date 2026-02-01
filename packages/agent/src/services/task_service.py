@@ -127,13 +127,13 @@ class TaskService:
 
         if status:
             query = query.where("status", "==", status)
-        
+
         if tag:
             query = query.where("tags", "array_contains", tag)
-            
+
         if start_date:
             query = query.where("created_at", ">=", start_date)
-            
+
         if end_date:
             query = query.where("created_at", "<=", end_date)
 
@@ -360,10 +360,11 @@ class TaskService:
             }
         """
         import datetime
-        from google.cloud import storage
+
         import google.auth
-        from google.auth.transport import requests
         from google.auth import compute_engine
+        from google.auth.transport import requests
+        from google.cloud import storage
 
         # Content-Typeに基づいた拡張子の決定
         ext = ".jpg" if content_type == "image/jpeg" else ".png"
@@ -378,14 +379,14 @@ class TaskService:
         # Cloud Run環境用: IAM Credentials APIを使用した署名
         # デフォルトのサービスアカウント認証情報を取得
         credentials, project = google.auth.default()
-        
+
         # 認証情報がコンピュート認証の場合、署名用認証情報に変換
         if isinstance(credentials, compute_engine.Credentials):
             # サービスアカウントのメールアドレスを取得
             auth_request = requests.Request()
             credentials.refresh(auth_request)
             service_account_email = credentials.service_account_email
-            
+
             # 署名用認証情報を作成
             signing_credentials = compute_engine.IDTokenCredentials(
                 auth_request,

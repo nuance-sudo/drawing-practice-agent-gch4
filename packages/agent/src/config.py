@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     image_generation_function_url: str = ""  # Cloud Run Function URL
     annotation_function_url: str = ""  # Cloud Run Function URL
 
+    # Agent Engine設定
+    agent_engine_id: str = ""  # Agent Engine リソースID
+    agent_engine_location: str = "us-central1"  # Agent Engineのリージョン
+
     # Gemini設定
     gemini_model: str = "gemini-3-flash-preview"
 

@@ -3,20 +3,23 @@
 ADKエージェントが使用するツール関数を定義。
 """
 
-import structlog
+import re
+
 from google import genai
 from google.genai import types
 from pydantic import ValidationError
 
-from src.config import settings
-from src.models.feedback import DessinAnalysis
-from src.prompts.coaching import (
+from .config import settings
+from .models import DessinAnalysis, Rank
+from .prompts import (
     DESSIN_ANALYSIS_USER_PROMPT,
     get_dessin_analysis_system_prompt,
 )
-from src.utils.validation import sanitize_for_storage, validate_image_url
 
-logger = structlog.get_logger()
+
+class ImageProcessingError(Exception):
+    """画像処理エラー"""
+    pass
 
 
 def _convert_to_gcs_uri(url: str) -> str:
@@ -24,29 +27,41 @@ def _convert_to_gcs_uri(url: str) -> str:
 
     https://storage.googleapis.com/bucket-name/path/to/file
     → gs://bucket-name/path/to/file
-
-    Args:
-        url: 検証済みのURL
-
-    Returns:
-        gs://形式のURI（変換不可の場合は元のURLをそのまま返す）
     """
     if url.startswith("gs://"):
         return url
 
-    # storage.googleapis.com 形式の場合
     if url.startswith("https://storage.googleapis.com/"):
-        # https://storage.googleapis.com/bucket/path → gs://bucket/path
         path = url.replace("https://storage.googleapis.com/", "")
         return f"gs://{path}"
 
-    # storage.cloud.google.com 形式の場合
     if url.startswith("https://storage.cloud.google.com/"):
         path = url.replace("https://storage.cloud.google.com/", "")
         return f"gs://{path}"
 
-    # 変換できない場合は元のURLを返す
     return url
+
+
+def _validate_image_url(url: str) -> str:
+    """画像URLを検証"""
+    if not url:
+        raise ImageProcessingError("画像URLが空です")
+
+    # 基本的なスキームチェック
+    if not (url.startswith("https://") or url.startswith("gs://")):
+        raise ImageProcessingError(f"許可されていないスキームです: {url[:10]}")
+
+    return url
+
+
+def _sanitize_for_storage(text: str, max_length: int = 10000) -> str:
+    """テキストをサニタイズ"""
+    if not text:
+        return ""
+    sanitized = text[:max_length]
+    sanitized = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", sanitized)
+    return sanitized
+
 
 def analyze_dessin_image(image_url: str, rank_label: str = "初学者") -> dict[str, object]:
     """デッサン画像を分析し、フィードバックを返す
@@ -56,8 +71,7 @@ def analyze_dessin_image(image_url: str, rank_label: str = "初学者") -> dict[
 
     Args:
         image_url: 分析対象の画像URL（Cloud StorageまたはCloud CDN経由）
-        rank_label: ユーザーの現在のランク（例: "10級", "初段"）。プロンプトに含めることで、ランクに応じた評価を促す。
-                    不正な値の場合はデフォルト（10級）にフォールバックします。
+        rank_label: ユーザーの現在のランク（例: "10級", "初段"）
 
     Returns:
         分析結果を含む辞書。以下のキーを含む:
@@ -73,31 +87,23 @@ def analyze_dessin_image(image_url: str, rank_label: str = "初学者") -> dict[
         >>> print(result["analysis"]["overall_score"])
         75.5
     """
-    logger.info("analyze_dessin_image_started", image_url=image_url[:100], rank=rank_label)
-
-    # ランクのホワイトリスト検証（Prompt Injection対策）
-    from src.models.rank import Rank
+    # ランクのホワイトリスト検証
     valid_ranks = {r.label for r in Rank}
     if rank_label not in valid_ranks:
-        logger.warning(
-            "invalid_rank_label_fallback",
-            original_label=rank_label,
-            fallback=Rank.KYU_10.label
-        )
         rank_label = Rank.KYU_10.label
 
     try:
-        # URL検証（SSRF対策）
-        validated_url = validate_image_url(image_url)
+        # URL検証
+        validated_url = _validate_image_url(image_url)
 
-        # https:// URLをgs:// URIに変換（Vertex AIがGCSに直接アクセスできるように）
+        # GCS URIに変換
         gcs_uri = _convert_to_gcs_uri(validated_url)
 
         # Gemini クライアント初期化
         client = genai.Client(
             vertexai=True,
             project=settings.gcp_project_id,
-            location=settings.gcp_region,
+            location=settings.gemini_location,
         )
 
         # MIMEタイプを判定
@@ -111,10 +117,8 @@ def analyze_dessin_image(image_url: str, rank_label: str = "初学者") -> dict[
             mime_type=mime_type,
         )
 
-        # ランク情報を含むシステムプロンプトを生成（ランク情報は既にシステムプロンプトに含まれている）
+        # プロンプト生成
         system_prompt = get_dessin_analysis_system_prompt(rank_label)
-
-        # ユーザープロンプト（ランク情報はシステムプロンプトに既に含まれているため重複しない）
         user_prompt = DESSIN_ANALYSIS_USER_PROMPT
 
         # 分析リクエスト
@@ -138,20 +142,14 @@ def analyze_dessin_image(image_url: str, rank_label: str = "初学者") -> dict[
             ),
         )
 
-        # レスポンスをパース（Pydanticで構造検証）
+        # レスポンスをパース
         analysis = DessinAnalysis.model_validate_json(response.text)
 
-        # スコア範囲の追加検証
+        # スコア範囲の検証
         analysis = _validate_and_sanitize_analysis(analysis)
 
         # 要約を作成
         summary = _create_summary(analysis)
-
-        logger.info(
-            "analyze_dessin_image_completed",
-            overall_score=analysis.overall_score,
-            tags=analysis.tags,
-        )
 
         return {
             "status": "success",
@@ -159,29 +157,20 @@ def analyze_dessin_image(image_url: str, rank_label: str = "初学者") -> dict[
             "summary": summary,
         }
 
-    except ValidationError as e:
-        logger.error("analysis_validation_failed", error=str(e))
+    except ValidationError:
         return {
             "status": "error",
             "error_message": "分析結果の検証に失敗しました",
         }
     except Exception as e:
-        logger.error("analyze_dessin_image_failed", error=str(e))
         return {
             "status": "error",
-            "error_message": "デッサン分析に失敗しました",
+            "error_message": f"デッサン分析に失敗しました: {e!s}",
         }
 
 
 def _validate_and_sanitize_analysis(analysis: DessinAnalysis) -> DessinAnalysis:
-    """分析結果を検証しサニタイズ
-
-    Args:
-        analysis: 分析結果
-
-    Returns:
-        検証・サニタイズ済みの分析結果
-    """
+    """分析結果を検証しサニタイズ"""
     # スコアを0-100の範囲にクランプ
     analysis.overall_score = max(0.0, min(100.0, analysis.overall_score))
     analysis.proportion.score = max(0.0, min(100.0, analysis.proportion.score))
@@ -190,22 +179,15 @@ def _validate_and_sanitize_analysis(analysis: DessinAnalysis) -> DessinAnalysis:
     analysis.line_quality.score = max(0.0, min(100.0, analysis.line_quality.score))
 
     # テキストフィールドをサニタイズ
-    analysis.strengths = [sanitize_for_storage(s, 500) for s in analysis.strengths[:10]]
-    analysis.improvements = [sanitize_for_storage(i, 500) for i in analysis.improvements[:10]]
-    analysis.tags = [sanitize_for_storage(t, 50) for t in analysis.tags[:20]]
+    analysis.strengths = [_sanitize_for_storage(s, 500) for s in analysis.strengths[:10]]
+    analysis.improvements = [_sanitize_for_storage(i, 500) for i in analysis.improvements[:10]]
+    analysis.tags = [_sanitize_for_storage(t, 50) for t in analysis.tags[:20]]
 
     return analysis
 
 
 def _create_summary(analysis: DessinAnalysis) -> str:
-    """分析結果から要約を作成
-
-    Args:
-        analysis: デッサン分析結果
-
-    Returns:
-        要約文字列
-    """
+    """分析結果から要約を作成"""
     score = analysis.overall_score
     strengths = analysis.strengths[:2] if analysis.strengths else []
     improvements = analysis.improvements[:1] if analysis.improvements else []

@@ -8,9 +8,11 @@
 
 | サービス | リソース名 | リージョン | 備考 |
 |----------|-----------|----------|------|
-| Cloud Run | `dessin-coaching-agent` | us-central1 | エージェントAPI |
+| Agent Engine | `1367965088278904832` | us-central1 | デッサンコーチングエージェント |
+| Cloud Run | `dessin-coaching-agent` | us-central1 | エージェントAPI（従来方式） |
 | Artifact Registry | `drawing-practice-agent` | us-central1 | Dockerイメージ |
 | Cloud Storage | `drawing-practice-agent-gch4` | - | 画像ストレージ |
+| Cloud Storage | `drawing-practice-agent-staging` | us-central1 | Agent Engineステージング用 |
 | Firestore | `(default)` | asia-northeast1 | タスク・データ管理 |
 
 ---
@@ -25,6 +27,8 @@ Cloud Runサービスに設定されている環境変数：
 | `GCP_REGION` | `global` | Gemini API用リージョン ※ |
 | `FIRESTORE_DATABASE` | `(default)` | Firestoreデータベース名 |
 | `STORAGE_BUCKET` | `<YOUR_BUCKET_NAME>` | Cloud Storageバケット名 |
+| `AGENT_ENGINE_ID` | `1367965088278904832` | Agent Engine リソースID |
+| `AGENT_ENGINE_LOCATION` | `us-central1` | Agent Engine リージョン |
 | `DEBUG` | `false` | デバッグモード |
 | `LOG_LEVEL` | `INFO` | ログレベル |
 
@@ -46,6 +50,50 @@ Cloud Runサービスに設定されている環境変数：
  ```
  
 ### 2. Agent (BackEnd)
+
+#### Option A: Vertex AI Agent Engine へデプロイ（推奨）
+
+ADK CLI を使用して Vertex AI Agent Engine にエージェントをデプロイします。
+エージェントはマネージドサービスとして実行され、スケーリングやインフラ管理が不要です。
+
+```bash
+cd packages/agent
+
+# ADK CLI でデプロイ
+uv run adk deploy agent_engine \
+  --project=drawing-practice-agent \
+  --region=us-central1 \
+  --staging_bucket=gs://drawing-practice-agent-staging \
+  --display_name="Dessin Coaching Agent" \
+  --requirements_file=dessin_coaching_agent/requirements.txt \
+  dessin_coaching_agent
+```
+
+**デプロイ成功後の出力例:**
+```
+✅ Created agent engine: projects/333660601649/locations/us-central1/reasoningEngines/{AGENT_ENGINE_ID}
+```
+
+**出力された Resource ID を `.env` に設定:**
+```bash
+AGENT_ENGINE_ID={AGENT_ENGINE_ID}
+```
+
+**既存のAgent Engineを更新する場合:**
+```bash
+uv run adk deploy agent_engine \
+  --project=drawing-practice-agent \
+  --region=us-central1 \
+  --staging_bucket={STAGING_BUCKET} \
+  --agent_engine_id={AGENT_ENGINE_ID} \
+  --requirements_file=dessin_coaching_agent/requirements.txt \
+  dessin_coaching_agent
+```
+
+> **Note**: Agent Engine の料金については [Vertex AI Agent Engine 料金ページ](https://cloud.google.com/vertex-ai/pricing#vertex-ai-agent-engine) を参照してください。
+
+#### Option B: Cloud Run へデプロイ（従来方式）
+
 Container Registry (Artifact Registry) にビルドして Cloud Run にデプロイします。
 ※ `packages/agent` ディレクトリで実行してください。
 

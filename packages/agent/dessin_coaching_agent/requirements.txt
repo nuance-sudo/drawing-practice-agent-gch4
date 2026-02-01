@@ -1,0 +1,7 @@
+# Agent Engine デプロイ用依存関係
+google-adk>=1.18.0
+google-cloud-aiplatform[agent_engines,adk]>=1.133.0
+google-genai>=1.20.0
+google-cloud-storage>=2.19.0
+pydantic>=2.10.6
+pydantic-settings>=2.7.1

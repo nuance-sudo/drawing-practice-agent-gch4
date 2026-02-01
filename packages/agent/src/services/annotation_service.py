@@ -4,7 +4,6 @@
 """
 
 import asyncio
-from typing import List
 
 import aiohttp
 import google.auth.transport.requests
@@ -34,7 +33,7 @@ class AnnotationService:
         original_image_url: str,
         analysis: DessinAnalysis,
         user_rank: UserRank,
-        motif_tags: List[str],
+        motif_tags: list[str],
     ) -> str | None:
         """アノテーション画像生成リクエストを送信し、結果を待って返す
 
@@ -77,40 +76,39 @@ class AnnotationService:
 
             # タイムアウトを300秒（5分）に延長（アノテーション生成には時間がかかる場合がある）
             timeout = aiohttp.ClientTimeout(total=300)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(
-                    self.function_url,
-                    json=payload,
-                    headers=headers,
-                ) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        logger.error(
-                            "annotation_generation_failed",
-                            task_id=task_id,
-                            status=response.status,
-                            error=error_text,
-                        )
-                        return None
-                    
-                    # レスポンスからannotated_image_urlを取得
-                    result = await response.json()
-                    annotated_image_url = result.get("annotated_image_url")
-                    
-                    if annotated_image_url:
-                        logger.info(
-                            "annotation_generation_completed",
-                            task_id=task_id,
-                            annotated_image_url=annotated_image_url,
-                        )
-                        return annotated_image_url
-                    else:
-                        logger.warning(
-                            "annotation_generation_no_url_in_response",
-                            task_id=task_id,
-                            response=result,
-                        )
-                        return None
+            async with aiohttp.ClientSession(timeout=timeout) as session, session.post(
+                self.function_url,
+                json=payload,
+                headers=headers,
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    logger.error(
+                        "annotation_generation_failed",
+                        task_id=task_id,
+                        status=response.status,
+                        error=error_text,
+                    )
+                    return None
+
+                # レスポンスからannotated_image_urlを取得
+                result = await response.json()
+                annotated_image_url = result.get("annotated_image_url")
+
+                if annotated_image_url:
+                    logger.info(
+                        "annotation_generation_completed",
+                        task_id=task_id,
+                        annotated_image_url=annotated_image_url,
+                    )
+                    return annotated_image_url
+                else:
+                    logger.warning(
+                        "annotation_generation_no_url_in_response",
+                        task_id=task_id,
+                        response=result,
+                    )
+                    return None
 
         except Exception as e:
             logger.error(

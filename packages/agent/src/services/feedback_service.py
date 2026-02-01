@@ -3,10 +3,17 @@
 分析結果とユーザーランクに基づいて、構造化されたフィードバック（Markdown）を生成する。
 """
 
-import structlog
-from typing import List
 
-from src.models.feedback import DessinAnalysis, FeedbackResponse, ProportionAnalysis, ToneAnalysis, TextureAnalysis, LineQualityAnalysis
+import structlog
+
+from src.models.feedback import (
+    DessinAnalysis,
+    FeedbackResponse,
+    LineQualityAnalysis,
+    ProportionAnalysis,
+    TextureAnalysis,
+    ToneAnalysis,
+)
 from src.models.rank import Rank
 
 logger = structlog.get_logger()
@@ -43,16 +50,16 @@ class FeedbackService:
         # 主要な強みと改善点を1つずつピックアップ
         strength = analysis.strengths[0] if analysis.strengths else "全体的なバランス"
         improvement = analysis.improvements[0] if analysis.improvements else "特になし"
-        
+
         return f"総合スコア: {score:.1f}/100 | 良い点: {strength} | 改善点: {improvement}"
 
     def _generate_markdown(self, analysis: DessinAnalysis, rank: Rank) -> str:
         """ランクに応じたMarkdownフィードバックを生成"""
-        
+
         intro_message = self._get_rank_intro_message(rank, analysis.overall_score)
 
         md = []
-        md.append(f"# デッサン分析レポート")
+        md.append("# デッサン分析レポート")
         md.append(f"**現在のランク**: {rank.label} | **総合スコア**: {analysis.overall_score:.1f}")
         md.append("")
         md.append(intro_message)
@@ -64,34 +71,34 @@ class FeedbackService:
         md.append(self._format_criterion("明暗・陰影", analysis.tone, rank))
         md.append(self._format_criterion("質感・タッチ", analysis.texture, rank))
         md.append(self._format_criterion("線の質", analysis.line_quality, rank))
-        
+
         # 総合アドバイス（強みと改善点）
         md.append("## 💡 総合アドバイス")
-        
+
         if analysis.strengths:
             md.append("### 良い点")
             for strength in analysis.strengths:
                 md.append(f"- {strength}")
-        
+
         if analysis.improvements:
             md.append("### 改善ポイント")
             advice_prefix = self._get_rank_advice_prefix(rank)
             for improvement in analysis.improvements:
                 md.append(f"- {advice_prefix}{improvement}")
-        
+
         # ランク別の次のステップアドバイス
         next_step = self._get_rank_next_step(rank, analysis.overall_score)
         if next_step:
             md.append("")
             md.append("## 🎯 次のステップ")
             md.append(next_step)
-        
+
         return "\n".join(md)
 
     def _get_rank_intro_message(self, rank: Rank, score: float) -> str:
         """ランクに応じたイントロメッセージを生成"""
         rank_value = rank.value
-        
+
         # 10級-6級（初級）
         if rank_value <= Rank.KYU_6.value:
             if score >= 80:
@@ -100,7 +107,7 @@ class FeedbackService:
                 return "デッサン練習お疲れ様です！良い部分もたくさんあります。一つずつ改善していきましょう。"
             else:
                 return "デッサン練習お疲れ様です！最初は難しく感じるかもしれませんが、継続することで必ず上達します。一緒に頑張りましょう！"
-        
+
         # 5級-1級（中級）
         elif rank_value <= Rank.KYU_1.value:
             if score >= 80:
@@ -109,7 +116,7 @@ class FeedbackService:
                 return "デッサン練習お疲れ様です。中級者として、より技術的な精度を意識していきましょう。"
             else:
                 return "デッサン練習お疲れ様です。中級者として、基礎技術の見直しと応用技術の習得をバランスよく進めていきましょう。"
-        
+
         # 初段-3段（上級）
         elif rank_value <= Rank.DAN_3.value:
             if score >= 80:
@@ -118,7 +125,7 @@ class FeedbackService:
                 return "デッサン練習お疲れ様です。上級者として、より高度な技術と表現力を目指していきましょう。"
             else:
                 return "デッサン練習お疲れ様です。上級者として、技術の再確認と新たな表現方法の探求を続けていきましょう。"
-        
+
         # 師範代-師範（達人）
         else:
             if score >= 80:
@@ -131,7 +138,7 @@ class FeedbackService:
     def _get_rank_advice_prefix(self, rank: Rank) -> str:
         """ランクに応じたアドバイスの接頭辞を取得"""
         rank_value = rank.value
-        
+
         # 10級-6級（初級）
         if rank_value <= Rank.KYU_6.value:
             return "次回は、"
@@ -148,28 +155,28 @@ class FeedbackService:
     def _get_rank_next_step(self, rank: Rank, score: float) -> str:
         """ランクに応じた次のステップアドバイスを生成"""
         rank_value = rank.value
-        
+
         # 10級-6級（初級）
         if rank_value <= Rank.KYU_6.value:
             if score >= 80:
                 return "基礎がしっかりしてきました。次は**複数のモチーフ**に挑戦して、配置や前後関係を意識したデッサンに取り組んでみましょう。"
             else:
                 return "まずは**単純な形（球、立方体など）**を正確に描く練習を続けましょう。形の正確さと基本的な明暗の使い分けを意識することが大切です。"
-        
+
         # 5級-1級（中級）
         elif rank_value <= Rank.KYU_1.value:
             if score >= 80:
                 return "中級者としての技術が身についてきました。次は**複合モチーフ**や**パースペクティブ**を意識した構図に挑戦してみましょう。"
             else:
                 return "中級者として、**比率の正確性**と**明暗の階調（5-7段階）**を意識した練習を続けましょう。ハッチング技法も積極的に取り入れてみてください。"
-        
+
         # 初段-3段（上級）
         elif rank_value <= Rank.DAN_3.value:
             if score >= 80:
                 return "上級者としての技術が確立されてきました。次は**意図的な画面構成**や**空気遠近法**を活用した、より表現力豊かなデッサンに挑戦してみましょう。"
             else:
                 return "上級者として、**細部の表現**と**全体のバランス**を両立させる練習を続けましょう。反射光や陰影の描き分け、素材感の表現をさらに追求してください。"
-        
+
         # 師範代-師範（達人）
         else:
             if score >= 80:
@@ -182,7 +189,7 @@ class FeedbackService:
                           metric: ProportionAnalysis | ToneAnalysis | TextureAnalysis | LineQualityAnalysis,
                           rank: Rank) -> str:
         """評価項目のMarkdownフォーマット（ランクに応じた説明を追加）"""
-        
+
         # スコアに応じたアイコン
         score_icon = "🟢"
         if metric.score >= 80:
@@ -196,13 +203,13 @@ class FeedbackService:
 
         section = []
         section.append(f"### {title} {score_icon} ({metric.score:.1f}/100)")
-        
+
         # ランクに応じた評価の説明を追加
         rank_context = self._get_rank_criterion_context(title, rank)
         if rank_context:
             section.append(f"*{rank_context}*")
             section.append("")
-        
+
         # 各フィールドの内容を表示
         details = []
         if isinstance(metric, ProportionAnalysis):
@@ -228,7 +235,7 @@ class FeedbackService:
     def _get_rank_criterion_context(self, criterion_title: str, rank: Rank) -> str:
         """ランクに応じた評価項目の説明を取得"""
         rank_value = rank.value
-        
+
         # 10級-6級（初級）の説明
         if rank_value <= Rank.KYU_6.value:
             if criterion_title == "プロポーション":
@@ -239,7 +246,7 @@ class FeedbackService:
                 return "初級者として、極端な質感の違い（ツヤとザラザラ）を表現しましょう"
             elif criterion_title == "線の質":
                 return "初級者として、筆圧の強弱と基本的なハッチングを意識しましょう"
-        
+
         # 5級-1級（中級）の説明
         elif rank_value <= Rank.KYU_1.value:
             if criterion_title == "プロポーション":
@@ -250,7 +257,7 @@ class FeedbackService:
                 return "中級者として、金属・ガラス・木材などの素材の描き分けを意識しましょう"
             elif criterion_title == "線の質":
                 return "中級者として、シャープとソフトな線の使い分けとクロスハッチングを意識しましょう"
-        
+
         # 初段-3段（上級）の説明
         elif rank_value <= Rank.DAN_3.value:
             if criterion_title == "プロポーション":
@@ -261,7 +268,7 @@ class FeedbackService:
                 return "上級者として、重さ・温度・柔らかさまで感じさせる表現を意識しましょう"
             elif criterion_title == "線の質":
                 return "上級者として、一本の線に豊かな表情と「描かないこと」の表現を意識しましょう"
-        
+
         # 師範代-師範（達人）の説明
         else:
             if criterion_title == "プロポーション":
@@ -272,7 +279,7 @@ class FeedbackService:
                 return "達人として、触覚的リアリティと観る者の感覚を刺激する表現を追求しましょう"
             elif criterion_title == "線の質":
                 return "達人として、一本の線に豊かな表情と「描かないこと」で形を表現する高度テクニックを追求しましょう"
-        
+
         return ""
 
 

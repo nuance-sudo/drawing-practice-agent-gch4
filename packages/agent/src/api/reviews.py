@@ -16,12 +16,12 @@ from src.models.task import (
     ReviewTaskResponse,
     TaskStatus,
 )
-from src.services.feedback_service import get_feedback_service
+from src.services.agent_engine_service import get_agent_engine_service
 from src.services.annotation_service import get_annotation_service
+from src.services.feedback_service import get_feedback_service
 from src.services.image_generation_service import get_image_generation_service
 from src.services.rank_service import get_rank_service
 from src.services.task_service import get_task_service
-from src.tools.analysis import analyze_dessin_image
 
 logger = structlog.get_logger()
 
@@ -54,8 +54,13 @@ async def process_review_task(task_id: str, user_id: str, image_url: str) -> Non
         except Exception as e:
             logger.warn("rank_fetch_failed", user_id=user_id, error=str(e))
 
-        # デッサン分析を実行
-        result = analyze_dessin_image(image_url, rank_label=current_rank_label)
+        # Agent Engine経由でデッサン分析を実行
+        agent_engine_service = get_agent_engine_service()
+        result = await agent_engine_service.run_coaching_agent(
+            image_url=image_url,
+            rank_label=current_rank_label,
+            user_id=user_id,
+        )
 
         if result.get("status") == "success":
             analysis = result.get("analysis", {})
@@ -101,7 +106,7 @@ async def process_review_task(task_id: str, user_id: str, image_url: str) -> Non
             # DessinAnalysisオブジェクトに変換（辞書から）
             from src.models.feedback import DessinAnalysis
             dessin_analysis = DessinAnalysis(**analysis)
-            
+
             feedback_response = feedback_service.generate_feedback(
                 analysis=dessin_analysis,
                 rank=user_rank.current_rank
@@ -153,7 +158,7 @@ async def process_review_task(task_id: str, user_id: str, image_url: str) -> Non
                     has_annotated_image=bool(annotated_image_url),
                 )
                 image_generation_service = get_image_generation_service()
-                
+
                 await image_generation_service.generate_example_image(
                     task_id=task_id,
                     user_id=user_id,
@@ -162,13 +167,13 @@ async def process_review_task(task_id: str, user_id: str, image_url: str) -> Non
                     motif_tags=dessin_analysis.tags,
                     annotated_image_url=annotated_image_url,
                 )
-                
+
                 logger.info("example_image_generation_request_completed", task_id=task_id)
                 # Cloud Functionからの完了通知待ちのため、ここではステータスを更新しない
-                    
+
             except Exception as e:
-                logger.error("example_image_generation_request_failed", 
-                           task_id=task_id, 
+                logger.error("example_image_generation_request_failed",
+                           task_id=task_id,
                            error=str(e))
                 # 画像生成リクエスト失敗時は、画像なしでタスク完了とする
                 service.update_task_status(
@@ -257,13 +262,13 @@ async def create_review(
         rank_at_review=rank_at_review,
     )
 
-    # バックグラウンドでエージェント分析を開始
-    import asyncio
-    asyncio.create_task(process_review_task(
+    # エージェント分析を実行（同期的に待機）
+    # Note: 将来的にはCloud Tasksに移行予定
+    await process_review_task(
         task_id=task.task_id,
         user_id=task.user_id,
         image_url=task.image_url,
-    ))
+    )
 
     logger.info(
         "review_created",
@@ -337,13 +342,13 @@ async def list_reviews(
         審査タスクの一覧
     """
     service = get_task_service()
-    
+
     # 日付文字列をdatetimeに変換
     from datetime import datetime
     start_dt = None
     if start_date:
         start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-        
+
     end_dt = None
     if end_date:
         # 日付の終わり（23:59:59.999999）まで含めるため
@@ -351,7 +356,7 @@ async def list_reviews(
 
     # 認証済みユーザーのタスクのみ取得
     tasks = service.list_tasks(
-        user_id=current_user.user_id, 
+        user_id=current_user.user_id,
         limit=limit,
         start_date=start_dt,
         end_date=end_dt,

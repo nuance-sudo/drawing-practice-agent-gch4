@@ -1,12 +1,10 @@
 """FastAPIエントリーポイント"""
 
+import firebase_admin
 import structlog
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-
-import firebase_admin
-from firebase_admin import credentials
 
 from src.api.reviews import router as reviews_router
 from src.config import settings
@@ -63,18 +61,18 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         status_code=exc.status_code,
         content={"detail": exc.detail}
     )
-    
+
     # CORSヘッダーを手動で追加
     origin = request.headers.get("origin")
     if origin in settings.cors_origins:
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
-    
+
     # WWW-Authenticateヘッダーがある場合は追加
     if hasattr(exc, 'headers') and exc.headers:
         for key, value in exc.headers.items():
             response.headers[key] = value
-    
+
     return response
 
 
