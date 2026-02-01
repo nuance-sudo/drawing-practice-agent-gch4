@@ -47,7 +47,7 @@ gcloud functions deploy generate-image \
     --entry-point=generate_example_image \
     --trigger-http \
     --no-allow-unauthenticated \
-    --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,OUTPUT_BUCKET_NAME=$GCS_BUCKET_NAME,COMPLETE_TASK_FUNCTION_URL=$COMPLETE_TASK_URL,GEMINI_MODEL=gemini-2.5-flash-image \
+    --set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,OUTPUT_BUCKET_NAME=$GCS_BUCKET_NAME,COMPLETE_TASK_FUNCTION_URL=$COMPLETE_TASK_URL,GEMINI_MODEL=gemini-3-pro-image-preview \
     --memory=1Gi \
     --timeout=300s
 

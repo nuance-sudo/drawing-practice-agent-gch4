@@ -35,6 +35,12 @@ class AgentEngineService:
     def _ensure_initialized(self) -> None:
         """Vertex AI Clientを初期化"""
         if not self._initialized:
+            # 必須設定のバリデーション
+            if not settings.agent_engine_id:
+                raise RuntimeError("AGENT_ENGINE_ID is required but not configured")
+            if not settings.gcp_project_id:
+                raise RuntimeError("GCP_PROJECT_ID is required but not configured")
+
             self._client = vertexai.Client(
                 project=settings.gcp_project_id,
                 location=settings.agent_engine_location,
@@ -158,9 +164,12 @@ class AgentEngineService:
             - summary: フィードバックの要約
             - error_message: エラー時のメッセージ（エラー時のみ）
         """
+        # セキュリティ: URLからクエリパラメータを除去してログ出力
+        # （アクセストークンなどの機密情報を含む可能性があるため）
+        safe_url = image_url.split("?")[0] if "?" in image_url else image_url
         logger.info(
             "agent_engine_query_started",
-            image_url=image_url[:100],
+            image_url=safe_url[:100],
             rank_label=rank_label,
             user_id=user_id,
         )
