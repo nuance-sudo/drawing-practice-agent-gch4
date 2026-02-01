@@ -11,6 +11,7 @@ dependencies = [
     "google-cloud-firestore>=2.23.0",
     "google-cloud-storage>=3.8.0",
     "google-cloud-secret-manager>=2.21.0",
+    "google-cloud-tasks>=2.18.0",
     "fastapi>=0.115.0,<0.124.0",
     "uvicorn[standard]>=0.39.0",
     "httpx>=0.28.0",

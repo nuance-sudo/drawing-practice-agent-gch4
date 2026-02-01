@@ -83,125 +83,12 @@ packages/
   - **参考文書（ADK, Gemini API, GCP等のドキュメントURL）**
 
 
-#### 2. 作業単位のドキュメント（`.gemini/steering/[unixtime]-[開発タイトル]/`）
-
-特定の開発作業における「**今回何をするか**」を定義するステアリングファイル。
-作業完了後は参照用として保持されますが、新しい作業では新しいディレクトリを作成します。
-
-- **requirements.md** - 今回の作業の要求内容
-  - 変更・追加する機能の説明
-  - ユーザーストーリー
-  - 受け入れ条件
-  - 制約事項
-
-- **design.md** - 変更内容の設計
-  - 実装アプローチ
-  - 変更するコンポーネント
-  - データ構造の変更
-  - 影響範囲の分析
-
-- **task.md** - タスクリスト
-  - 具体的な実装タスク
-  - タスクの進捗状況（`[ ]` / `[/]` / `[x]`）
-  - 完了条件
-
-- **walkthrough.md** - 作業完了サマリー（作業完了後に作成）
-  - 実施した変更の概要
-  - テスト結果・検証結果
-  - スクリーンショットや動作確認の記録
-  - 次のステップや残課題
-
-### ステアリングディレクトリの命名規則
-
-```
-.gemini/steering/[unixtime]-[開発タイトル]/
-```
-
-**例：**
-- `.gemini/steering/1736474400-initial-implementation/`
-- `.gemini/steering/1736560800-add-tag-feature/`
-- `.gemini/steering/1736647200-fix-filter-bug/`
-- `.gemini/steering/1736733600-improve-performance/`
-
-**unix timestampの取得方法：**
-```bash
-date +%s
-```
-
-## 開発プロセス
-
-### 初回セットアップ時の手順
-
-#### 1. フォルダ作成
-```bash
-mkdir -p docs
-mkdir -p packages/agent packages/web packages/infra
-mkdir -p .gemini/steering
-```
-
-#### 2. 永続的ドキュメント作成（`docs/`）
-
-アプリケーション全体の設計を定義します。
-各ドキュメントを作成後、必ず確認・承認を得てから次に進みます。
-
-1. `docs/product-requirements.md` - プロダクト要求定義書
-2. `docs/functional-design.md` - 機能設計書
-3. `docs/architecture.md` - 技術仕様書
-4. `docs/repository-structure.md` - リポジトリ構造定義書
-5. `docs/development-guidelines.md` - 開発ガイドライン
-6. `docs/glossary.md` - ユビキタス言語定義
-
-**重要：** 1ファイルごとに作成後、必ず確認・承認を得てから次のファイル作成を行う
-
-#### 3. 初回実装用のステアリングファイル作成
-
-初回実装用のディレクトリを作成し、実装に必要なドキュメントを配置します。
-
-```bash
-mkdir -p .gemini/steering/$(date +%s)-initial-implementation
-```
-
-作成するドキュメント：
-1. `requirements.md` - 初回実装の要求
-2. `design.md` - 実装設計
-3. `task.md` - 実装タスク
-
-#### 4. 環境セットアップ
-
-#### 5. 実装開始
-
-`task.md` に基づいて実装を進めます。
-
-#### 6. 品質チェック
-
-### 機能追加・修正時の手順
 
 #### 1. 影響分析
 
 - 永続的ドキュメント（`docs/`）への影響を確認
 - 変更が基本設計に影響する場合は `docs/` を更新
 
-#### 2. ステアリングディレクトリ作成
-
-新しい作業用のディレクトリを作成します。
-
-```bash
-mkdir -p .gemini/steering/$(date +%s)-[開発タイトル]
-```
-
-**例：**
-```bash
-mkdir -p .gemini/steering/$(date +%s)-add-tag-feature
-```
-
-#### 3. 作業ドキュメント作成
-
-作業単位のドキュメントを作成します。
-各ドキュメント作成後、必ず確認・承認を得てから次に進みます。
-
-1. `requirements.md` - 要求内容
-2. `design.md` - 設計
-3. `task.md` - タスクリスト
 
 **重要：** 1ファイルごとに作成後、必ず確認・承認を得てから次のファイル作成を行う
 
@@ -209,11 +96,7 @@ mkdir -p .gemini/steering/$(date +%s)-add-tag-feature
 
 変更が基本設計に影響する場合、該当する `docs/` 内のドキュメントを更新します。
 
-#### 5. 実装開始
 
-`task.md` に基づいて実装を進めます。
-
-#### 6. 品質チェック
 
 ## ドキュメント管理の原則
 
@@ -223,11 +106,6 @@ mkdir -p .gemini/steering/$(date +%s)-add-tag-feature
 - 大きな設計変更時のみ更新
 - プロジェクト全体の「北極星」として機能
 
-### 作業単位のドキュメント（`.gemini/steering/`）
-- 特定の作業・変更に特化
-- 作業ごとに新しいディレクトリを作成
-- 作業完了後は履歴として保持（GitHubで管理）
-- 変更の意図と経緯を記録
 
 ## 図表・ダイアグラムの記載ルール
 
@@ -301,6 +179,7 @@ graph TD
 | スキル名 | 説明 | 呼び出し方 |
 |----------|------|-----------|
 | `aidlc` | AI-DLC（AI-Driven Development Life Cycle）ワークフロー起動。大規模開発・リファクタリング・新規プロジェクト時に使用 | `/aidlc [開発内容]` |
+| `work-complete` | 作業完了後にaidlc-docsをsteeringに移動し、walkthroughを作成 | `/work-complete [作業タイトル]` |
 | `check-package-versions` | Pythonパッケージの最新バージョン確認・更新 | `/check-package-versions` |
 | `pre-deploy-check` | デプロイ前のテスト・構文チェック・リント・型チェック | `/pre-deploy-check` |
 | `code-quality` | コーディング規約・命名規則・スタイリングの確認 | `/code-quality` |
@@ -311,6 +190,8 @@ graph TD
 ```
 .agent/skills/
 ├── aidlc/
+│   └── SKILL.md
+├── work-complete/
 │   └── SKILL.md
 ├── check-package-versions/
 │   └── SKILL.md

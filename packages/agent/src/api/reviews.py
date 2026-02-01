@@ -7,7 +7,7 @@
 import contextlib
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.auth import AuthenticatedUser, get_current_user
 from src.models.task import (
@@ -230,13 +230,12 @@ async def get_upload_url(
 @router.post("", response_model=ReviewTaskResponse, status_code=201)
 async def create_review(
     request: CreateReviewRequest,
-    background_tasks: BackgroundTasks,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> ReviewTaskResponse:
     """審査リクエストを作成
 
     画像URLを受け取り、新規タスクを作成してpending状態で返す。
-    バックグラウンドでエージェントによる分析を開始する。
+    Cloud Tasksを使用してバックグラウンドでエージェントによる分析を開始する。
     user_idは認証済みユーザーから取得する。
     """
     service = get_task_service()
@@ -247,10 +246,7 @@ async def create_review(
     try:
         rank_service = get_rank_service()
         user_rank_info = rank_service.get_user_rank(current_user.user_id)
-        if user_rank_info:
-            rank_at_review = user_rank_info.current_rank.label
-        else:
-            rank_at_review = Rank.KYU_10.label  # デフォルト: 10級
+        rank_at_review = user_rank_info.current_rank.label if user_rank_info else Rank.KYU_10.label
     except Exception as e:
         logger.warn("rank_fetch_failed_at_create", user_id=current_user.user_id, error=str(e))
         rank_at_review = Rank.KYU_10.label  # フォールバック: 10級
@@ -262,13 +258,33 @@ async def create_review(
         rank_at_review=rank_at_review,
     )
 
-    # エージェント分析を実行（同期的に待機）
-    # Note: 将来的にはCloud Tasksに移行予定
-    await process_review_task(
-        task_id=task.task_id,
-        user_id=task.user_id,
-        image_url=task.image_url,
-    )
+    # Cloud Tasksにタスクを投入（非同期処理）
+    try:
+        from src.services.cloud_tasks_service import get_cloud_tasks_service
+        cloud_tasks_service = get_cloud_tasks_service()
+        cloud_tasks_service.create_review_task(
+            task_id=task.task_id,
+            user_id=task.user_id,
+            image_url=task.image_url,
+        )
+        logger.info(
+            "review_task_enqueued",
+            task_id=task.task_id,
+            user_id=task.user_id,
+        )
+    except Exception as e:
+        # Cloud Tasksへの投入が失敗した場合はフォールバック
+        logger.error(
+            "cloud_tasks_enqueue_failed",
+            task_id=task.task_id,
+            error=str(e),
+        )
+        # フォールバック: 同期処理を実行
+        await process_review_task(
+            task_id=task.task_id,
+            user_id=task.user_id,
+            image_url=task.image_url,
+        )
 
     logger.info(
         "review_created",
