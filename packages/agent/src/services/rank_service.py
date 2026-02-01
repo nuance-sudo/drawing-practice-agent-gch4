@@ -5,7 +5,6 @@
 
 import uuid
 from datetime import datetime
-from typing import List
 
 import structlog
 from google.cloud import firestore
@@ -49,10 +48,10 @@ class RankService:
         # 最高ランク（師範）の場合は昇格しない
         if current_rank == Rank.SHIHAN:
             return None
-        
+
         # 次のランクの値を計算
         next_rank_value = current_rank.value + 1
-        
+
         # Rank enumから取得
         try:
             return Rank(next_rank_value)
@@ -75,13 +74,13 @@ class RankService:
             更新後のユーザーランク情報
         """
         user_ref = self._users_collection.document(user_id)
-        
+
         # 1. 現在のユーザー情報を取得
         user_doc = user_ref.get()
         current_rank = Rank.KYU_10
         total_submissions = 0
         high_scores = []
-        
+
         if user_doc.exists:
             user_data = user_doc.to_dict() or {}
             # 既存のランク情報があれば取得
@@ -90,13 +89,13 @@ class RankService:
                     current_rank = Rank(user_data["rank"])
                 except ValueError:
                     current_rank = Rank.KYU_10
-            
+
             total_submissions = user_data.get("total_submissions", 0)
             high_scores = user_data.get("high_scores", [])
 
         # 2. 新しい情報を追加
         total_submissions += 1
-        
+
         # 3. ランクを計算（80点以上なら1つ上のランクに昇格）
         new_rank = current_rank
         if score >= 80:
@@ -106,7 +105,7 @@ class RankService:
             next_rank = self._get_next_rank(current_rank)
             if next_rank is not None:
                 new_rank = next_rank
-        
+
         now = datetime.now()
 
         # 4. ユーザー情報を更新
@@ -117,7 +116,7 @@ class RankService:
             "high_scores": high_scores,
             "updated_at": now,
         }
-        
+
         # マージオプションで保存
         user_ref.set(update_data, merge=True)
 
@@ -129,7 +128,7 @@ class RankService:
         if rank_changed or is_first_time:
             history_id = str(uuid.uuid4())
             history_ref = user_ref.collection(self.RANK_HISTORY_COLLECTION).document(history_id)
-            
+
             history_entry = RankHistory(
                 user_id=user_id,
                 old_rank=None if is_first_time else current_rank,
@@ -138,7 +137,7 @@ class RankService:
                 changed_at=now,
                 task_id=task_id
             )
-            
+
             history_ref.set({
                 "user_id": history_entry.user_id,
                 "old_rank": history_entry.old_rank.value if history_entry.old_rank else None,
@@ -147,7 +146,7 @@ class RankService:
                 "changed_at": history_entry.changed_at,
                 "task_id": history_entry.task_id
             })
-            
+
             if rank_changed:
                 logger.info(
                     "rank_promoted",
@@ -185,14 +184,14 @@ class RankService:
         """
         user_ref = self._users_collection.document(user_id)
         user_doc = user_ref.get()
-        
+
         if not user_doc.exists:
             return None
-            
+
         data = user_doc.to_dict() or {}
         if "rank" not in data:
             return None
-            
+
         try:
             return UserRank(
                 user_id=user_id,

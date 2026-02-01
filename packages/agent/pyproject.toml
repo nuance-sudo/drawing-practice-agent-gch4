@@ -5,12 +5,13 @@ description = "鉛筆デッサンコーチングエージェント"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "google-adk>=1.18.0",
-    "google-cloud-aiplatform>=1.133.0",
+    "google-adk>=1.23.0",
+    "google-cloud-aiplatform[agent_engines,adk]>=1.135.0",
+    "google-genai>=1.61.0",
     "google-cloud-firestore>=2.23.0",
     "google-cloud-storage>=3.8.0",
     "google-cloud-secret-manager>=2.21.0",
-    "fastapi>=0.128.0",
+    "fastapi>=0.115.0,<0.124.0",
     "uvicorn[standard]>=0.39.0",
     "httpx>=0.28.0",
     "aiohttp>=3.10.0",

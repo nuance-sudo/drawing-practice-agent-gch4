@@ -1,8 +1,7 @@
 """ランクモデル定義"""
 
-from enum import IntEnum
 from datetime import datetime
-from typing import List
+from enum import IntEnum
 
 from pydantic import BaseModel, Field
 
@@ -46,7 +45,7 @@ class UserRank(BaseModel):
     current_rank: Rank = Field(..., description="現在のランク")
     current_score: float = Field(..., description="現在のスコア（最新のデッサン総合スコア）")
     total_submissions: int = Field(0, description="総提出回数")
-    high_scores: List[float] = Field(default_factory=list, description="80点以上のスコア履歴")
+    high_scores: list[float] = Field(default_factory=list, description="80点以上のスコア履歴")
     rank_changed: bool = Field(False, description="今回ランクが変動したか（昇格した場合True）")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新日時")
 

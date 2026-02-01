@@ -1,15 +1,15 @@
 """コーチング用プロンプト定義"""
 
+
 def get_dessin_analysis_system_prompt(rank_label: str = "10級") -> str:
     """ランク情報を含むシステムプロンプトを生成
-    
+
     Args:
         rank_label: ユーザーの現在のランクラベル（例: "10級", "5級", "初段"）
-    
+
     Returns:
         ランク情報を含むシステムプロンプト
     """
-    # ランクに応じた評価の重点項目を決定
     rank_category = _get_rank_category(rank_label)
     rank_focus = _get_rank_focus_instruction(rank_category)
 
@@ -167,14 +167,12 @@ def _get_rank_category(rank_label: str) -> str:
             elif kyu_level >= 1:
                 return "中級"
         except ValueError:
-            # Invalid number format in rank label
             pass
     elif "段" in rank_label:
         return "上級"
     elif "師範" in rank_label:
         return "達人"
 
-    # デフォルトは初級
     return "初級"
 
 
@@ -214,7 +212,6 @@ def _get_rank_focus_instruction(rank_category: str) -> str:
 """
 
 
-
 DESSIN_ANALYSIS_USER_PROMPT = """=== ユーザー入力（画像）開始 ===
 
 以下の画像はユーザーが提出したデッサンです。
@@ -224,46 +221,4 @@ DESSIN_ANALYSIS_USER_PROMPT = """=== ユーザー入力（画像）開始 ===
 JSON形式で回答してください。
 
 === ユーザー入力（画像）終了 ===
-"""
-
-FEEDBACK_SUMMARY_PROMPT = """以下のデッサン分析結果をもとに、生徒向けの励ましを含む要約文を作成してください。
-
-分析結果:
-{analysis_json}
-
-要約文は2-3文で、良い点を認めつつ、最も重要な改善点を1つ挙げてください。
-親しみやすく、モチベーションを高める文体で書いてください。
-"""
-
-DETAILED_FEEDBACK_PROMPT = """以下のデッサン分析結果をもとに、詳細なフィードバックをMarkdown形式で作成してください。
-
-分析結果:
-{analysis_json}
-
-## 出力形式
-
-```markdown
-## 🎨 デッサンコーチング フィードバック
-
-### 総合評価: ⭐ {score}/100
-
----
-
-### 🌟 良い点
-
-- [良い点を箇条書き]
-
----
-
-### 📈 改善ポイント
-
-#### [カテゴリ名]
-- [具体的な改善アドバイス]
-
----
-
-### 💡 次回のポイント
-
-[次回のデッサンで意識すべき1つのポイント]
-```
 """

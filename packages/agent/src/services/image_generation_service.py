@@ -5,13 +5,11 @@
 """
 
 import asyncio
-import json
-from typing import List, Optional
 
-import structlog
+import aiohttp
 import google.auth.transport.requests
 import google.oauth2.id_token
-import aiohttp
+import structlog
 
 from src.config import settings
 from src.models.feedback import DessinAnalysis
@@ -37,8 +35,8 @@ class ImageGenerationService:
         user_id: str,
         original_image_url: str,
         analysis: DessinAnalysis,
-        motif_tags: List[str],
-        annotated_image_url: Optional[str] = None,
+        motif_tags: list[str],
+        annotated_image_url: str | None = None,
     ) -> None:
         """お手本画像生成リクエストを送信する（非同期）
 
@@ -77,7 +75,7 @@ class ImageGenerationService:
                 "analysis": analysis.model_dump(),
                 "motif_tags": motif_tags,
             }
-            
+
             # アノテーション画像URLがあれば追加
             if annotated_image_url:
                 payload["annotated_image_url"] = annotated_image_url
@@ -86,7 +84,7 @@ class ImageGenerationService:
             # Cloud Functions Gen2の場合、.run.appのURLをtarget_audienceとして使用
             target_audience = self._convert_to_run_app_url(self.function_url)
             auth_req = google.auth.transport.requests.Request()
-            
+
             # 同期処理なのでExecutorで実行
             id_token = await asyncio.get_event_loop().run_in_executor(
                 None,
@@ -99,24 +97,23 @@ class ImageGenerationService:
                 "Content-Type": "application/json"
             }
 
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    self.function_url,
-                    json=payload,
-                    headers=headers,
-                    timeout=300  # Cloud Functionの処理に時間がかかる場合がある（5分）
-                ) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        raise ImageGenerationError(
-                            f"Cloud Function request failed: {response.status} - {error_text}"
-                        )
-                    
-                    logger.info(
-                        "image_generation_request_sent",
-                        task_id=task_id,
-                        status=response.status
+            async with aiohttp.ClientSession() as session, session.post(
+                self.function_url,
+                json=payload,
+                headers=headers,
+                timeout=300  # Cloud Functionの処理に時間がかかる場合がある（5分）
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise ImageGenerationError(
+                        f"Cloud Function request failed: {response.status} - {error_text}"
                     )
+
+                logger.info(
+                    "image_generation_request_sent",
+                    task_id=task_id,
+                    status=response.status
+                )
 
         except Exception as e:
             logger.error(
@@ -158,7 +155,7 @@ class ImageGenerationService:
 
 
 # シングルトンインスタンス
-_image_generation_service: Optional[ImageGenerationService] = None
+_image_generation_service: ImageGenerationService | None = None
 
 
 def get_image_generation_service() -> ImageGenerationService:
