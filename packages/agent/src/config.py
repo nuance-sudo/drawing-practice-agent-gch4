@@ -43,6 +43,11 @@ class Settings(BaseSettings):
 
     image_generation_function_url: str = ""  # Cloud Run Function URL
     annotation_function_url: str = ""  # Cloud Run Function URL
+    process_review_function_url: str = ""  # Cloud Run Function URL (Cloud Tasks経由で呼び出し)
+
+    # Cloud Tasks設定
+    cloud_tasks_location: str = "us-central1"
+    cloud_tasks_queue_name: str = "review-processing-queue"
 
     # Agent Engine設定
     agent_engine_id: str = ""  # Agent Engine リソースID
