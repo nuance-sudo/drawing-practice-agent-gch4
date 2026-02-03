@@ -8,7 +8,7 @@
 
 | サービス | リソース名 | リージョン | 備考 |
 |----------|-----------|----------|------|
-| Agent Engine | `1367965088278904832` | us-central1 | デッサンコーチングエージェント |
+| Agent Engine | `<AGENT_ENGINE_ID>` | us-central1 | デッサンコーチングエージェント |
 | Cloud Run | `dessin-coaching-agent` | us-central1 | エージェントAPI（従来方式） |
 | Artifact Registry | `drawing-practice-agent` | us-central1 | Dockerイメージ |
 | Cloud Storage | `drawing-practice-agent-gch4` | - | 画像ストレージ |
@@ -27,7 +27,7 @@ Cloud Runサービスに設定されている環境変数：
 | `GCP_REGION` | `global` | Gemini API用リージョン ※ |
 | `FIRESTORE_DATABASE` | `(default)` | Firestoreデータベース名 |
 | `STORAGE_BUCKET` | `<YOUR_BUCKET_NAME>` | Cloud Storageバケット名 |
-| `AGENT_ENGINE_ID` | `1367965088278904832` | Agent Engine リソースID |
+| `AGENT_ENGINE_ID` | `<AGENT_ENGINE_ID>` | Agent Engine リソースID |
 | `AGENT_ENGINE_LOCATION` | `us-central1` | Agent Engine リージョン |
 | `DEBUG` | `false` | デバッグモード |
 | `LOG_LEVEL` | `INFO` | ログレベル |
@@ -59,13 +59,22 @@ ADK CLI を使用して Vertex AI Agent Engine にエージェントをデプロ
 ```bash
 cd packages/agent
 
-# ADK CLI でデプロイ
+# 1. 環境変数ファイルを作成（初回のみ）
+cat > dessin_coaching_agent/.env << EOF
+AGENT_ENGINE_ID=<YOUR_AGENT_ENGINE_ID>
+AGENT_ENGINE_REGION=us-central1
+GEMINI_LOCATION=global
+EOF
+
+# 2. ADK CLI でデプロイ
 uv run adk deploy agent_engine \
   --project=drawing-practice-agent \
   --region=us-central1 \
-  --staging_bucket=gs://drawing-practice-agent-staging \
   --display_name="Dessin Coaching Agent" \
   --requirements_file=dessin_coaching_agent/requirements.txt \
+  --env_file=dessin_coaching_agent/.env \
+  --trace_to_cloud \
+  --otel_to_cloud \
   dessin_coaching_agent
 ```
 
@@ -84,13 +93,15 @@ AGENT_ENGINE_ID={AGENT_ENGINE_ID}
 uv run adk deploy agent_engine \
   --project=drawing-practice-agent \
   --region=us-central1 \
-  --staging_bucket={STAGING_BUCKET} \
   --agent_engine_id={AGENT_ENGINE_ID} \
   --requirements_file=dessin_coaching_agent/requirements.txt \
+  --env_file=dessin_coaching_agent/.env \
+  --trace_to_cloud \
+  --otel_to_cloud \
   dessin_coaching_agent
 ```
 
-> **Note**: Agent Engine の料金については [Vertex AI Agent Engine 料金ページ](https://cloud.google.com/vertex-ai/pricing#vertex-ai-agent-engine) を参照してください。
+> **Note**: `--trace_to_cloud` と `--otel_to_cloud` で Cloud Trace と OpenTelemetry が有効になります。
 
 #### Option B: Cloud Run へデプロイ（従来方式）
 

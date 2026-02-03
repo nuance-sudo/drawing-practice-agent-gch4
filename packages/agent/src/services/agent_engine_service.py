@@ -1,6 +1,7 @@
 """Agent Engine呼び出しサービス
 
 Vertex AI Agent Engineにデプロイされたエージェントを呼び出すサービス。
+エージェント側でPreloadMemoryToolを使用してMemory Bankから過去メモリを自動取得。
 """
 
 import json
@@ -143,7 +144,6 @@ class AgentEngineService:
 
         return None
 
-
     async def run_coaching_agent(
         self,
         image_url: str,
@@ -151,6 +151,9 @@ class AgentEngineService:
         user_id: str,
     ) -> dict[str, object]:
         """Agent Engineのコーチングエージェントを実行
+
+        エージェント側でPreloadMemoryToolを使用して過去メモリを自動取得するため、
+        APIサーバー側でのメモリ処理は不要。
 
         Args:
             image_url: 分析対象の画像URL
@@ -180,9 +183,12 @@ class AgentEngineService:
             # エージェントへのメッセージを構築
             # Note: Agent Engine内のエージェントはanalyze_dessin_imageツールを持っており、
             # 画像URLを渡すことでデッサン分析を実行します
+            # PreloadMemoryToolにより過去メモリは自動的にプリロードされます
+            # user_idはメモリ保存のためにメッセージに含める
             message = (
                 f"画像URL: {image_url}\n"
                 f"ユーザーランク: {rank_label}\n"
+                f"ユーザーID: {user_id}\n"
                 f"この画像を分析してください。"
             )
 
