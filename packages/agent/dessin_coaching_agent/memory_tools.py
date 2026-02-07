@@ -75,7 +75,7 @@ def search_memory_by_motif(
             })
 
         logger.info(
-            "メモリ検索完了: user=%s, motif=%s, count=%d",
+            "モチーフ別メモリ検索完了: user=%s, motif=%s, count=%d",
             user_id,
             motif,
             len(memories),
@@ -132,7 +132,7 @@ def search_recent_memories(
             })
 
         logger.info(
-            "直近メモリ取得完了: user=%s, count=%d",
+            "全履歴メモリ取得完了: user=%s, count=%d",
             user_id,
             len(memories),
         )

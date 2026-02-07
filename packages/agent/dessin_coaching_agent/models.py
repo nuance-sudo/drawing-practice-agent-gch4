@@ -67,12 +67,48 @@ class LineQualityAnalysis(BaseModel):
     score: float = Field(..., ge=0, le=100, description="スコア (0-100)")
 
 
+class GrowthAnalysis(BaseModel):
+    """成長トラッキング分析（5つ目の採点項目）
+
+    過去の提出と比較した成長度を評価。
+    初回提出時は全フィールドがデフォルト値となる。
+    """
+
+    comparison_summary: str = Field(
+        default="初回提出のため比較データなし",
+        description="前回提出との比較サマリー",
+    )
+    improved_areas: list[str] = Field(
+        default_factory=list,
+        description="前回から改善した項目リスト",
+    )
+    consistent_strengths: list[str] = Field(
+        default_factory=list,
+        description="一貫して維持している強み",
+    )
+    ongoing_challenges: list[str] = Field(
+        default_factory=list,
+        description="継続的に取り組むべき課題",
+    )
+    score: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+        description="成長スコア (0-100)。初回提出時はnull",
+    )
+
+
 class DessinAnalysis(BaseModel):
     """デッサン総合分析"""
+
     proportion: ProportionAnalysis = Field(..., description="プロポーション分析")
     tone: ToneAnalysis = Field(..., description="陰影分析")
     texture: TextureAnalysis = Field(..., description="質感分析")
     line_quality: LineQualityAnalysis = Field(..., description="線の質分析")
+    growth: GrowthAnalysis = Field(
+        default_factory=GrowthAnalysis,
+        description="成長トラッキング分析（過去提出との比較）",
+    )
     overall_score: float = Field(..., ge=0, le=100, description="総合スコア (0-100)")
     strengths: list[str] = Field(..., description="強み・良い点")
     improvements: list[str] = Field(..., description="改善点")

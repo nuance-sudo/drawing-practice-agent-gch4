@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from .callbacks import save_analysis_to_memory
 from .config import settings
+from .memory_tools import MemoryEntry, search_memory_by_motif, search_recent_memories
 from .models import DessinAnalysis, Rank
 from .prompts import (
     DESSIN_ANALYSIS_USER_PROMPT,
@@ -148,7 +149,12 @@ def analyze_dessin_image(
             mime_type=mime_type,
         )
 
-        # プロンプト生成
+        # effective_user_id を先に定義
+        effective_user_id = user_id
+        if not effective_user_id and tool_context and hasattr(tool_context, "user_id"):
+            effective_user_id = tool_context.user_id or ""
+
+        # プロンプト生成（成長情報はLLMに生成させず、後で補正する）
         system_prompt = get_dessin_analysis_system_prompt(rank_label)
         user_prompt = DESSIN_ANALYSIS_USER_PROMPT
 
@@ -179,14 +185,37 @@ def analyze_dessin_image(
         # スコア範囲の検証
         analysis = _validate_and_sanitize_analysis(analysis)
 
+        # === 成長トラッキング: 分析後にメモリ取得して補正 ===
+        if effective_user_id:
+            # Step 1: モチーフでフィルタして検索
+            motif = analysis.tags[0] if analysis.tags else None
+            past_memories: list[MemoryEntry] = []
+
+            if motif:
+                past_memories = search_memory_by_motif(motif, effective_user_id)
+                logger.info(
+                    "モチーフ別メモリ検索: user=%s, motif=%s, count=%d",
+                    effective_user_id,
+                    motif,
+                    len(past_memories),
+                )
+
+            # Step 2: フォールバック - 見つからなければ全履歴で再検索
+            if not past_memories:
+                past_memories = search_recent_memories(effective_user_id, limit=5)
+                logger.info(
+                    "フォールバック: 全履歴検索 user=%s, count=%d",
+                    effective_user_id,
+                    len(past_memories),
+                )
+
+            # Step 3: 成長スコア補正
+            analysis = _calculate_growth_from_memories(analysis, past_memories)
+
         # 要約を作成
         summary = _create_summary(analysis)
 
-        # Memory Bankに保存（引数のuser_idを優先、フォールバックでtool_contextから取得）
-        effective_user_id = user_id
-        if not effective_user_id and tool_context and hasattr(tool_context, "user_id"):
-            effective_user_id = tool_context.user_id or ""
-
+        # Memory Bankに保存
         if effective_user_id:
             saved = save_analysis_to_memory(analysis, effective_user_id, session_id)
             if saved:
@@ -246,3 +275,65 @@ def _create_summary(analysis: DessinAnalysis) -> str:
         summary_parts.append(f"改善ポイント: {improvements[0]}")
 
     return " | ".join(summary_parts)
+
+
+def _calculate_growth_from_memories(
+    analysis: DessinAnalysis,
+    past_memories: list[MemoryEntry],
+) -> DessinAnalysis:
+    """過去メモリを使って成長スコアを補正
+
+    Args:
+        analysis: LLMが生成した分析結果
+        past_memories: 過去のメモリリスト
+
+    Returns:
+        成長スコアを補正した分析結果
+    """
+    if not past_memories:
+        # 初回提出：スコアをNullに、サマリーを初回用メッセージに
+        analysis.growth.score = None
+        analysis.growth.comparison_summary = "初回提出のため比較データなし"
+        analysis.growth.improved_areas = []
+        analysis.growth.consistent_strengths = []
+        analysis.growth.ongoing_challenges = []
+        logger.info("成長スコア補正: 初回提出")
+        return analysis
+
+    # 過去スコアを取得
+    past_scores: list[float] = []
+    for mem in past_memories:
+        metadata = mem.get("metadata", {})
+        if isinstance(metadata, dict):
+            score = metadata.get("overall_score")
+            if isinstance(score, (int, float)):
+                past_scores.append(float(score))
+
+    if not past_scores:
+        # メタデータにスコアがない場合も初回扱い
+        analysis.growth.score = None
+        analysis.growth.comparison_summary = "過去データにスコア情報がありません"
+        return analysis
+
+    # 成長スコア計算: 過去平均との差分をベースに
+    avg_past_score = sum(past_scores) / len(past_scores)
+    score_diff = analysis.overall_score - avg_past_score
+
+    # 成長スコア = 50 + 差分（0-100にクランプ）
+    # 50点 = 維持、50以上 = 成長、50未満 = 後退
+    growth_score = max(0.0, min(100.0, 50.0 + score_diff))
+
+    analysis.growth.score = growth_score
+    analysis.growth.comparison_summary = (
+        f"過去{len(past_scores)}件の平均({avg_past_score:.1f}点)と比較して"
+        f"{'成長' if score_diff > 0 else '維持' if score_diff == 0 else '要復習'}しています"
+    )
+
+    logger.info(
+        "成長スコア補正: past_avg=%.1f, current=%.1f, growth=%.1f",
+        avg_past_score,
+        analysis.overall_score,
+        growth_score,
+    )
+
+    return analysis

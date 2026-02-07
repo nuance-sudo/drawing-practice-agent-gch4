@@ -60,22 +60,19 @@ def save_analysis_to_memory(
             f"/reasoningEngines/{settings.agent_engine_id}"
         )
 
-        # スコープを構築（user_id + session_idで分離）
+        # スコープを構築（user_idのみ。session_idはメタデータで管理）
         scope: dict[str, str] = {"user_id": user_id}
-        if session_id:
-            scope["session_id"] = session_id
 
         logger.info(
-            "メモリ保存開始: engine=%s, user=%s, session=%s, fact_length=%d",
-            engine_name,
+            "メモリ保存開始: user=%s, motif=%s, score=%.1f",
             user_id,
-            session_id,
-            len(fact),
+            analysis.tags[0] if analysis.tags else "不明",
+            analysis.overall_score,
         )
 
         # Memory Bankに保存（direct_memories_sourceを使用）
         # https://cloud.google.com/agent-builder/agent-engine/memory-bank/generate-memories
-        result = client.agent_engines.memories.generate(
+        _ = client.agent_engines.memories.generate(
             name=engine_name,
             direct_memories_source={"direct_memories": [{"fact": fact}]},
             scope=scope,
@@ -85,11 +82,10 @@ def save_analysis_to_memory(
         )
 
         logger.info(
-            "メモリ保存完了: user=%s, motif=%s, score=%.1f, result=%s",
+            "メモリ保存成功: user=%s, motif=%s, score=%.1f",
             user_id,
             analysis.tags[0] if analysis.tags else "不明",
             analysis.overall_score,
-            result,
         )
         return True
 
@@ -100,7 +96,7 @@ def save_analysis_to_memory(
 
 def _build_memory_metadata(analysis: DessinAnalysis) -> dict[str, types.MemoryMetadataValue]:
     """分析結果からメタデータを構築"""
-    return {
+    metadata: dict[str, types.MemoryMetadataValue] = {
         "motif": types.MemoryMetadataValue(
             string_value=analysis.tags[0] if analysis.tags else "不明"
         ),
@@ -124,6 +120,14 @@ def _build_memory_metadata(analysis: DessinAnalysis) -> dict[str, types.MemoryMe
         ),
     }
 
+    # 成長スコアが存在する場合のみ追加
+    if analysis.growth.score is not None:
+        metadata["growth_score"] = types.MemoryMetadataValue(
+            double_value=analysis.growth.score
+        )
+
+    return metadata
+
 
 def _build_memory_fact(analysis: DessinAnalysis) -> str:
     """分析結果からfactテキストを構築"""
@@ -131,13 +135,24 @@ def _build_memory_fact(analysis: DessinAnalysis) -> str:
     improvements_text = ", ".join(analysis.improvements[:3]) if analysis.improvements else "なし"
     tags_text = ", ".join(analysis.tags) if analysis.tags else "なし"
 
+    # 成長情報
+    growth_score_text = (
+        f"{analysis.growth.score}/100"
+        if analysis.growth.score is not None
+        else "初回提出"
+    )
+    growth_summary = analysis.growth.comparison_summary
+
     return f"""デッサン分析結果:
 - 総合スコア: {analysis.overall_score}/100
 - プロポーション: {analysis.proportion.score}/100
 - 陰影: {analysis.tone.score}/100
 - 質感: {analysis.texture.score}/100
 - 線の質: {analysis.line_quality.score}/100
+- 成長スコア: {growth_score_text}
+- 成長サマリー: {growth_summary}
 - 強み: {strengths_text}
 - 改善点: {improvements_text}
 - タグ: {tags_text}
 """
+

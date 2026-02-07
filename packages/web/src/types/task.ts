@@ -24,7 +24,9 @@ export type Feedback = {
   details: {
     proportion: CategoryFeedback;
     shading: CategoryFeedback;
+    texture: CategoryFeedback;
     lineQuality: CategoryFeedback;
+    growth: GrowthFeedback;
   };
 };
 
@@ -32,6 +34,15 @@ export type CategoryFeedback = {
   score: number;
   comments: string[];
 };
+
+export type GrowthFeedback = {
+  score: number | null;
+  comparisonSummary: string;
+  improvedAreas: string[];
+  consistentStrengths: string[];
+  ongoingChallenges: string[];
+};
+
 
 export type TaskFilters = {
   startDate?: Date;

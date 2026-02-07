@@ -1,5 +1,5 @@
-import { Star, TrendingUp, Equal, AlertTriangle } from 'lucide-react';
-import type { ReviewTask, Feedback, CategoryFeedback } from '@/types/task';
+import { Star, TrendingUp, Equal, AlertTriangle, Sprout } from 'lucide-react';
+import type { ReviewTask, Feedback, CategoryFeedback, GrowthFeedback } from '@/types/task';
 import { clsx } from 'clsx';
 import { ExampleImageDisplay } from './ExampleImageDisplay';
 
@@ -53,7 +53,7 @@ export const FeedbackDisplay = ({ task, feedback, rankAtReview }: FeedbackDispla
             </div>
 
             {/* Categories Grid */}
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <CategoryCard
                     title="プロポーション"
                     data={feedback.details.proportion}
@@ -67,12 +67,23 @@ export const FeedbackDisplay = ({ task, feedback, rankAtReview }: FeedbackDispla
                     color="indigo"
                 />
                 <CategoryCard
+                    title="質感"
+                    data={feedback.details.texture}
+                    icon="🎨"
+                    color="emerald"
+                />
+                <CategoryCard
                     title="線の質"
                     data={feedback.details.lineQuality}
                     icon="✏️"
                     color="purple"
                 />
             </div>
+
+            {/* Growth Section */}
+            {feedback.details.growth && (
+                <GrowthCard data={feedback.details.growth} />
+            )}
 
             {/* Strengths & Improvements */}
             <div className="grid md:grid-cols-2 gap-6">
@@ -123,12 +134,13 @@ const CategoryCard = ({
     title: string;
     data: CategoryFeedback;
     icon: string;
-    color: 'blue' | 'indigo' | 'purple';
+    color: 'blue' | 'indigo' | 'purple' | 'emerald';
 }) => {
     const colors = {
         blue: 'bg-blue-50 text-blue-900 border-blue-100 ring-blue-500',
         indigo: 'bg-indigo-50 text-indigo-900 border-indigo-100 ring-indigo-500',
         purple: 'bg-purple-50 text-purple-900 border-purple-100 ring-purple-500',
+        emerald: 'bg-emerald-50 text-emerald-900 border-emerald-100 ring-emerald-500',
     };
 
     return (
@@ -146,6 +158,80 @@ const CategoryCard = ({
                     </li>
                 ))}
             </ul>
+        </div>
+    );
+};
+
+const GrowthCard = ({ data }: { data: GrowthFeedback }) => {
+    const isFirstSubmission = data.score === null;
+
+    return (
+        <div className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-3xl p-6 border border-teal-100 shadow-lg">
+            <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                    <Sprout className="w-8 h-8 text-teal-600" />
+                    <h3 className="text-2xl font-bold text-teal-900">成長トラッキング</h3>
+                </div>
+                {!isFirstSubmission && (
+                    <div className="bg-teal-100 px-4 py-2 rounded-full">
+                        <span className="text-2xl font-bold text-teal-800">{data.score}</span>
+                        <span className="text-sm text-teal-600">/100</span>
+                    </div>
+                )}
+                {isFirstSubmission && (
+                    <div className="bg-gray-100 px-4 py-2 rounded-full">
+                        <span className="text-sm text-gray-600">初回提出</span>
+                    </div>
+                )}
+            </div>
+
+            <p className="text-teal-800 mb-6 bg-white/50 p-4 rounded-2xl">
+                {data.comparisonSummary}
+            </p>
+
+            {!isFirstSubmission && (
+                <div className="grid md:grid-cols-3 gap-4">
+                    {data.improvedAreas.length > 0 && (
+                        <div className="bg-white/60 rounded-2xl p-4">
+                            <h4 className="font-bold text-teal-800 mb-2 flex items-center gap-2">
+                                <TrendingUp className="w-4 h-4" />
+                                改善した点
+                            </h4>
+                            <ul className="space-y-1 text-sm text-teal-700">
+                                {data.improvedAreas.map((area, i) => (
+                                    <li key={i}>• {area}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                    {data.consistentStrengths.length > 0 && (
+                        <div className="bg-white/60 rounded-2xl p-4">
+                            <h4 className="font-bold text-teal-800 mb-2 flex items-center gap-2">
+                                <Star className="w-4 h-4" />
+                                維持している強み
+                            </h4>
+                            <ul className="space-y-1 text-sm text-teal-700">
+                                {data.consistentStrengths.map((strength, i) => (
+                                    <li key={i}>• {strength}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                    {data.ongoingChallenges.length > 0 && (
+                        <div className="bg-white/60 rounded-2xl p-4">
+                            <h4 className="font-bold text-teal-800 mb-2 flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4" />
+                                継続課題
+                            </h4>
+                            <ul className="space-y-1 text-sm text-teal-700">
+                                {data.ongoingChallenges.map((challenge, i) => (
+                                    <li key={i}>• {challenge}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

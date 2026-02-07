@@ -16,6 +16,7 @@ from dessin_coaching_agent.memory_tools import (
 )
 from dessin_coaching_agent.models import (
     DessinAnalysis,
+    GrowthAnalysis,
     LineQualityAnalysis,
     ProportionAnalysis,
     TextureAnalysis,
@@ -49,6 +50,13 @@ def sample_analysis() -> DessinAnalysis:
             pressure_control="適切",
             hatching="基本的",
             score=72.0,
+        ),
+        growth=GrowthAnalysis(
+            comparison_summary="前回と比較して改善",
+            improved_areas=["プロポーション", "陰影"],
+            consistent_strengths=["構図"],
+            ongoing_challenges=["質感表現"],
+            score=75.0,
         ),
         overall_score=70.5,
         strengths=["プロポーションが正確", "陰影の一貫性"],
@@ -93,7 +101,7 @@ class TestSaveAnalysisToMemory:
             result = save_analysis_to_memory(sample_analysis, "test_user")
 
             assert result is True
-            mock_client.agent_engines.memories.create.assert_called_once()
+            mock_client.agent_engines.memories.generate.assert_called_once()
 
     def test_handles_exception_gracefully(
         self, sample_analysis: DessinAnalysis
@@ -110,7 +118,7 @@ class TestSaveAnalysisToMemory:
             mock_settings.gcp_region = "us-central1"
 
             mock_client = MagicMock()
-            mock_client.agent_engines.memories.create.side_effect = Exception(
+            mock_client.agent_engines.memories.generate.side_effect = Exception(
                 "API Error"
             )
             mock_client_cls.return_value = mock_client
@@ -262,11 +270,8 @@ class TestExtractMetadata:
 
     def test_extracts_double_value(self) -> None:
         """double_valueが正しく抽出される"""
-        mock_value = MagicMock()
-        mock_value.string_value = None
+        mock_value = MagicMock(spec=["double_value"])
         mock_value.double_value = 75.5
-        mock_value.bool_value = None
-        mock_value.timestamp_value = None
 
         result = _extract_metadata({"score": mock_value})
 
