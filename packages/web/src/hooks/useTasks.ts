@@ -27,6 +27,13 @@ interface FirestoreFeedback {
     tone?: { score: number; comments?: string[] };
     texture?: { score: number; comments?: string[] };
     line_quality?: { score: number; comments?: string[] };
+    growth?: {
+        score: number | null;
+        comparison_summary: string;
+        improved_areas: string[];
+        consistent_strengths: string[];
+        ongoing_challenges: string[];
+    };
 }
 
 const mapDocToTask = (docSnapshot: DocumentSnapshot<DocumentData>): ReviewTask => {
@@ -54,9 +61,20 @@ const mapDocToTask = (docSnapshot: DocumentSnapshot<DocumentData>): ReviewTask =
                         score: fb.tone?.score ?? 0, // tone -> shading
                         comments: [],
                     },
+                    texture: {
+                        score: fb.texture?.score ?? 0,
+                        comments: [],
+                    },
                     lineQuality: {
                         score: fb.line_quality?.score ?? 0, // line_quality -> lineQuality
                         comments: [],
+                    },
+                    growth: {
+                        score: fb.growth?.score ?? null,
+                        comparisonSummary: fb.growth?.comparison_summary ?? '初回提出のため比較データなし',
+                        improvedAreas: fb.growth?.improved_areas ?? [],
+                        consistentStrengths: fb.growth?.consistent_strengths ?? [],
+                        ongoingChallenges: fb.growth?.ongoing_challenges ?? [],
                     },
                 },
             };

@@ -18,8 +18,6 @@ packages/
 └── infra/    # インフラ定義（Terraform/gcloud）
 ```
 
-ルートの`Makefile`で統合コマンドを提供（`make deploy-all`, `make deploy-agent`, `make deploy-web`等）。
-
 ### Coding Standards
 
 コードを変更する際は、各パッケージのコーディング規約に従ってください：
@@ -180,9 +178,6 @@ graph TD
 |----------|------|-----------|
 | `aidlc` | AI-DLC（AI-Driven Development Life Cycle）ワークフロー起動。大規模開発・リファクタリング・新規プロジェクト時に使用 | `/aidlc [開発内容]` |
 | `work-complete` | 作業完了後にaidlc-docsをsteeringに移動し、walkthroughを作成 | `/work-complete [作業タイトル]` |
-| `check-package-versions` | Pythonパッケージの最新バージョン確認・更新 | `/check-package-versions` |
-| `pre-deploy-check` | デプロイ前のテスト・構文チェック・リント・型チェック | `/pre-deploy-check` |
-| `code-quality` | コーディング規約・命名規則・スタイリングの確認 | `/code-quality` |
 | `git-commit` | コミット・プッシュ・ブランチ作成・PR作成 | `/git-commit` |
 
 ### スキルの配置場所
@@ -192,12 +187,6 @@ graph TD
 ├── aidlc/
 │   └── SKILL.md
 ├── work-complete/
-│   └── SKILL.md
-├── check-package-versions/
-│   └── SKILL.md
-├── pre-deploy-check/
-│   └── SKILL.md
-├── code-quality/
 │   └── SKILL.md
 └── git-commit/
     └── SKILL.md
