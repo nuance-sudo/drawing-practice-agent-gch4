@@ -98,7 +98,21 @@ rmdir aidlc-docs
 [残タスクや今後の作業があれば記載]
 ```
 
-### 6. 完了報告
+### 6. 機密情報チェック（git差分）
+
+git差分を確認し、機密情報が含まれていないことを確認する。
+
+```bash
+git diff
+```
+
+必要に応じて、APIキーやトークンなどのパターンを追加で確認する。
+
+```bash
+rg -n "(api[_-]?key|client[_-]?secret|private[_-]?key|access[_-]?token|refresh[_-]?token|password|secret_key|AIza|sk-|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN (RSA|EC|DSA|OPENSSH) PRIVATE KEY-----|ya29\\.[A-Za-z0-9._-]+|type\"\\s*:\\s*\"service_account\"|private_key_id\"\\s*:\\s*\"[A-Za-z0-9]+\"|client_email\"\\s*:\\s*\"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\"|projects/[A-Za-z0-9-]+/secrets/[A-Za-z0-9-_]+)" .
+```
+
+### 7. 完了報告
 
 以下の形式でユーザーに報告する：
 
@@ -135,6 +149,7 @@ rmdir aidlc-docs
 - [ ] .gemini/steering/[unixtime]-[作業タイトル]/ に移動完了
 - [ ] walkthrough.md を作成完了
 - [ ] aidlc-docs/ が削除されている
+- [ ] git差分に機密情報が含まれていない
 
 ---
 

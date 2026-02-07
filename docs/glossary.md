@@ -56,6 +56,11 @@
 | メモリ | Memory | `memory` | 長期記憶（過去のフィードバック等） |
 | メモリバンク | Memory Bank | `memory_bank` | Vertex AI Memory Bank |
 | 提出 | Submission | `submission` | ユーザーのデッサン投稿 |
+| 成長分析 | Growth Analysis | `growth` | 過去比較による成長評価 |
+| 成長スコア | Growth Score | `growth_score` | 成長度を示す数値（0-100） |
+| Firebase認証 | Firebase Authentication | `firebase_auth` | GitHubプロバイダを使った認証 |
+| IDトークン | ID Token | `id_token` | Firebase認証で発行されるBearerトークン |
+| Cloud Tasks | Cloud Tasks | `cloud_tasks` | 非同期処理キュー |
 
 ---
 
@@ -99,14 +104,16 @@
 
 | クラス名 | 用途 | ファイル |
 |----------|------|----------|
-| `CoachingRequest` | コーチングリクエスト | `models/request.py` |
-| `DessinAnalysis` | デッサン分析結果 | `models/analysis.py` |
-| `ProportionAnalysis` | プロポーション分析 | `models/analysis.py` |
-| `ToneAnalysis` | 陰影分析 | `models/analysis.py` |
-| `TextureAnalysis` | 質感分析 | `models/analysis.py` |
-| `LineQualityAnalysis` | 線の質分析 | `models/analysis.py` |
-| `DessinFeedback` | フィードバック | `models/feedback.py` |
-| `UserRank` | ユーザーランク | `models/rank.py` |
+| `DessinAnalysis` | デッサン分析結果 | `dessin_coaching_agent/models.py` |
+| `GrowthAnalysis` | 成長トラッキング分析 | `dessin_coaching_agent/models.py` |
+| `ProportionAnalysis` | プロポーション分析 | `dessin_coaching_agent/models.py` |
+| `ToneAnalysis` | 陰影分析 | `dessin_coaching_agent/models.py` |
+| `TextureAnalysis` | 質感分析 | `dessin_coaching_agent/models.py` |
+| `LineQualityAnalysis` | 線の質分析 | `dessin_coaching_agent/models.py` |
+| `Rank` | ランク定義 | `dessin_coaching_agent/models.py` |
+| `UserRank` | ユーザーランク | `src/models/rank.py` |
+| `DessinFeedback` | フィードバック | `src/models/feedback.py` |
+| `ReviewTask` | レビュータスク | `src/models/task.py` |
 
 ---
 
@@ -114,10 +121,15 @@
 
 | クラス名 | 用途 | ファイル |
 |----------|------|----------|
-| `GeminiService` | Vertex AI Gemini連携 | `services/gemini_service.py` |
-| `RankService` | ランク管理（Firestore） | `services/rank_service.py` |
-| `MemoryService` | メモリ管理（Memory Bank） | `services/memory_service.py` |
-| `SecretsService` | Secret Manager連携 | `services/secrets.py` |
+| `AgentEngineService` | Agent Engine呼び出し | `src/services/agent_engine_service.py` |
+| `CloudTasksService` | Cloud Tasks連携 | `src/services/cloud_tasks_service.py` |
+| `GeminiService` | Vertex AI Gemini連携 | `src/services/gemini_service.py` |
+| `TaskService` | タスク管理（Firestore） | `src/services/task_service.py` |
+| `RankService` | ランク管理（Firestore） | `src/services/rank_service.py` |
+| `FeedbackService` | フィードバック生成 | `src/services/feedback_service.py` |
+| `AnnotationService` | アノテーション生成 | `src/services/annotation_service.py` |
+| `ImageGenerationService` | 画像生成 | `src/services/image_generation_service.py` |
+| `MemoryService` | Memory Bank連携 | `src/services/memory_service.py` |
 
 ---
 
@@ -125,12 +137,11 @@
 
 | 関数名 | 用途 | ファイル |
 |--------|------|----------|
-| `analyze_dessin` | デッサン分析 | `tools/image_tool.py` |
-| `generate_feedback` | フィードバック生成 | `agent.py` |
-| `generate_example_image` | お手本画像生成 | `tools/image_tool.py` |
-| `post_github_comment` | GitHubコメント投稿 | `tools/github_tool.py` |
-| `get_pr_images` | PR画像取得 | `tools/github_tool.py` |
-| `search_memory` | メモリ検索 | `agent.py` |
+| `analyze_dessin_image` | デッサン分析 | `dessin_coaching_agent/tools.py` |
+| `search_memory_by_motif` | モチーフ別メモリ検索 | `dessin_coaching_agent/memory_tools.py` |
+| `search_recent_memories` | 直近メモリ検索 | `dessin_coaching_agent/memory_tools.py` |
+| `preload_memory_tool` | メモリプリロード | `dessin_coaching_agent/memory_tools.py` |
+| `save_analysis_to_memory` | 分析結果保存 | `dessin_coaching_agent/callbacks.py` |
 
 ---
 
