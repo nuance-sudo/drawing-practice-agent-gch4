@@ -1,6 +1,7 @@
 """Agent Engine呼び出しサービス
 
 Vertex AI Agent Engineにデプロイされたエージェントを呼び出すサービス。
+エージェント側でPreloadMemoryToolを使用してMemory Bankから過去メモリを自動取得。
 """
 
 import json
@@ -143,35 +144,32 @@ class AgentEngineService:
 
         return None
 
-
     async def run_coaching_agent(
         self,
         image_url: str,
         rank_label: str,
         user_id: str,
+        session_id: str = "",
     ) -> dict[str, object]:
-        """Agent Engineのコーチングエージェントを実行
+        """エージェントを実行
 
         Args:
             image_url: 分析対象の画像URL
-            rank_label: ユーザーの現在のランク（例: "10級", "初段"）
+            rank_label: ユーザーの現在のランク
             user_id: ユーザーID
+            session_id: セッションID（レビューID、メモリ保存用）
 
         Returns:
-            分析結果を含む辞書:
-            - status: "success" または "error"
-            - analysis: 分析結果（DessinAnalysis形式）
-            - summary: フィードバックの要約
-            - error_message: エラー時のメッセージ（エラー時のみ）
+            分析結果を含む辞書
         """
         # セキュリティ: URLからクエリパラメータを除去してログ出力
-        # （アクセストークンなどの機密情報を含む可能性があるため）
         safe_url = image_url.split("?")[0] if "?" in image_url else image_url
         logger.info(
             "agent_engine_query_started",
             image_url=safe_url[:100],
             rank_label=rank_label,
             user_id=user_id,
+            session_id=session_id,
         )
 
         try:
@@ -180,9 +178,13 @@ class AgentEngineService:
             # エージェントへのメッセージを構築
             # Note: Agent Engine内のエージェントはanalyze_dessin_imageツールを持っており、
             # 画像URLを渡すことでデッサン分析を実行します
+            # PreloadMemoryToolにより過去メモリは自動的にプリロードされます
+            # user_idはメモリ保存のためにメッセージに含める
             message = (
                 f"画像URL: {image_url}\n"
                 f"ユーザーランク: {rank_label}\n"
+                f"ユーザーID: {user_id}\n"
+                f"セッションID: {session_id}\n"
                 f"この画像を分析してください。"
             )
 

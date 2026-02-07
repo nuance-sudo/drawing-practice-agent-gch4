@@ -50,5 +50,5 @@ packages/web/src/
 `npm run build` によりビルドエラーがないことを確認済み。
 
 ## デプロイ情報 (2026-01-21)
-- **Backend (Cloud Run)**: https://dessin-coaching-agent-333660601649.asia-northeast1.run.app
-- **Frontend (Firebase Hosting)**: https://drawing-practice-agent.web.app
+- **Backend (Cloud Run)**: https://<project>-<PROJECT_ID>.asia-northeast1.run.app
+- **Frontend (Firebase Hosting)**: https://<project>.web.app

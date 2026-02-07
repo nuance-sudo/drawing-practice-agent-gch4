@@ -3,18 +3,23 @@
 ADKエージェントが使用するツール関数を定義。
 """
 
+import logging
 import re
 
 from google import genai
+from google.adk.tools import ToolContext
 from google.genai import types
 from pydantic import ValidationError
 
+from .callbacks import save_analysis_to_memory
 from .config import settings
 from .models import DessinAnalysis, Rank
 from .prompts import (
     DESSIN_ANALYSIS_USER_PROMPT,
     get_dessin_analysis_system_prompt,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ImageProcessingError(Exception):
@@ -63,15 +68,24 @@ def _sanitize_for_storage(text: str, max_length: int = 10000) -> str:
     return sanitized
 
 
-def analyze_dessin_image(image_url: str, rank_label: str = "初学者") -> dict[str, object]:
+def analyze_dessin_image(
+    image_url: str,
+    rank_label: str = "初学者",
+    user_id: str = "",
+    session_id: str = "",
+    tool_context: "ToolContext | None" = None,
+) -> dict[str, object]:
     """デッサン画像を分析し、フィードバックを返す
 
     鉛筆デッサン画像を分析し、プロポーション、陰影、質感、線の質の観点から
-    評価とフィードバックを生成します。
+    評価とフィードバックを生成します。分析結果はMemory Bankに保存されます。
 
     Args:
         image_url: 分析対象の画像URL（Cloud StorageまたはCloud CDN経由）
         rank_label: ユーザーの現在のランク（例: "10級", "初段"）
+        user_id: ユーザーID（メモリ保存用）
+        session_id: セッションID（レビューID、メモリ保存用）
+        tool_context: ADKツールコンテキスト（自動注入）
 
     Returns:
         分析結果を含む辞書。以下のキーを含む:
@@ -81,7 +95,12 @@ def analyze_dessin_image(image_url: str, rank_label: str = "初学者") -> dict[
         - error_message: エラー時のメッセージ（エラー時のみ）
 
     Example:
-        >>> result = analyze_dessin_image("https://storage.googleapis.com/.../drawing.jpg", "5級")
+        >>> result = analyze_dessin_image(
+        ...     "https://storage.googleapis.com/.../drawing.jpg",
+        ...     "5級",
+        ...     "user123",
+        ...     "review123"
+        ... )
         >>> print(result["status"])
         "success"
         >>> print(result["analysis"]["overall_score"])
@@ -91,6 +110,18 @@ def analyze_dessin_image(image_url: str, rank_label: str = "初学者") -> dict[
     valid_ranks = {r.label for r in Rank}
     if rank_label not in valid_ranks:
         rank_label = Rank.KYU_10.label
+
+    # デバッグログ: ツール呼び出し時に受け取った引数を記録（Issue #74 調査用）
+    logger.info(
+        "analyze_dessin_image_called - DEBUG: 受け取った引数",
+        image_url_preview=image_url[:100] if image_url else "",
+        rank_label=rank_label,
+        user_id=user_id,
+        session_id=session_id,
+        user_id_length=len(user_id),
+        session_id_length=len(session_id),
+        has_tool_context=tool_context is not None,
+    )
 
     try:
         # URL検証
@@ -150,6 +181,20 @@ def analyze_dessin_image(image_url: str, rank_label: str = "初学者") -> dict[
 
         # 要約を作成
         summary = _create_summary(analysis)
+
+        # Memory Bankに保存（引数のuser_idを優先、フォールバックでtool_contextから取得）
+        effective_user_id = user_id
+        if not effective_user_id and tool_context and hasattr(tool_context, "user_id"):
+            effective_user_id = tool_context.user_id or ""
+
+        if effective_user_id:
+            saved = save_analysis_to_memory(analysis, effective_user_id, session_id)
+            if saved:
+                logger.info(
+                    "分析結果をMemory Bankに保存: user=%s, session=%s",
+                    effective_user_id,
+                    session_id,
+                )
 
         return {
             "status": "success",
