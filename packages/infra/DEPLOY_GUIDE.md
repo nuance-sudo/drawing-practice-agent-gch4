@@ -10,8 +10,12 @@
 |----------|-----------|----------|------|
 | Agent Engine | `<AGENT_ENGINE_ID>` | us-central1 | デッサンコーチングエージェント |
 | Cloud Run | `dessin-coaching-agent` | us-central1 | エージェントAPI（従来方式） |
+| Cloud Functions | `process-review` | us-central1 | 審査処理メイン |
+| Cloud Functions | `annotate-image` | us-central1 | 画像アノテーション生成 |
+| Cloud Functions | `generate-image` | us-central1 | お手本画像生成 |
+| Cloud Functions | `complete-task` | us-central1 | タスク完了処理 |
 | Artifact Registry | `drawing-practice-agent` | us-central1 | Dockerイメージ |
-| Cloud Storage | `drawing-practice-agent-gch4` | - | 画像ストレージ |
+| Cloud Storage | `drawing-practice-agent-images` | us-central1 | 生成画像ストレージ |
 | Cloud Storage | `drawing-practice-agent-staging` | us-central1 | Agent Engineステージング用 |
 | Firestore | `(default)` | asia-northeast1 | タスク・データ管理 |
 
@@ -29,6 +33,7 @@ Cloud Runサービスに設定されている環境変数：
 | `STORAGE_BUCKET` | `<YOUR_BUCKET_NAME>` | Cloud Storageバケット名 |
 | `AGENT_ENGINE_ID` | `<AGENT_ENGINE_ID>` | Agent Engine リソースID |
 | `AGENT_ENGINE_LOCATION` | `us-central1` | Agent Engine リージョン |
+| `CORS_ORIGINS` | `https://<PROJECT>.web.app,https://<PROJECT>.firebaseapp.com` | CORS許可オリジン（カンマ区切り） |
 | `DEBUG` | `false` | デバッグモード |
 | `LOG_LEVEL` | `INFO` | ログレベル |
 
@@ -64,6 +69,12 @@ cat > dessin_coaching_agent/.env << EOF
 AGENT_ENGINE_ID=<YOUR_AGENT_ENGINE_ID>
 AGENT_ENGINE_REGION=us-central1
 GEMINI_LOCATION=global
+
+# テレメトリー有効化（Cloud Trace連携）
+GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true
+
+# プロンプト入力とレスポンス出力のロギング有効化
+OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true
 EOF
 
 # 2. ADK CLI でデプロイ
@@ -76,11 +87,6 @@ uv run adk deploy agent_engine \
   --trace_to_cloud \
   --otel_to_cloud \
   dessin_coaching_agent
-```
-
-**デプロイ成功後の出力例:**
-```
-✅ Created agent engine: projects/333660601649/locations/us-central1/reasoningEngines/{AGENT_ENGINE_ID}
 ```
 
 **出力された Resource ID を `.env` に設定:**
@@ -100,9 +106,6 @@ uv run adk deploy agent_engine \
   --otel_to_cloud \
   dessin_coaching_agent
 ```
-
-> **Note**: `--trace_to_cloud` と `--otel_to_cloud` で Cloud Trace と OpenTelemetry が有効になります。
-
 #### Option B: Cloud Run へデプロイ（従来方式）
 
 Container Registry (Artifact Registry) にビルドして Cloud Run にデプロイします。
@@ -142,7 +145,36 @@ gcloud run deploy dessin-coaching-agent \
    --role="roles/run.invoker"
  ```
 
-### 4. Firestoreセキュリティルールのデプロイ
+### 4. Cloud Functions（審査処理API）のデプロイ
+
+Cloud Functions (2nd gen) として審査処理関連のAPIをデプロイします。
+
+| 関数名 | 説明 |
+|--------|------|
+| `process-review` | 審査処理メイン（Agent Engine呼び出し） |
+| `annotate-image` | 画像アノテーション生成 |
+| `generate-image` | お手本画像生成 |
+| `complete-task` | タスク完了処理 |
+
+#### 一括デプロイ
+
+デプロイスクリプトを使用して全関数を一括デプロイします。
+
+```bash
+# 1. 環境変数ファイルを作成
+cat > packages/functions/.env << EOF
+REGION=us-central1
+GCS_BUCKET_NAME=drawing-practice-agent-images
+AGENT_ENGINE_ID=<AGENT_ENGINE_ID>
+AGENT_ENGINE_LOCATION=us-central1
+EOF
+
+# 2. リポジトリルートからデプロイスクリプトを実行
+cd /path/to/drawing-practice-agent-gch4
+./packages/functions/deploy_functions.sh
+```
+
+### 5. Firestoreセキュリティルールのデプロイ
 
 Firestoreのセキュリティルールを更新した場合は、以下のコマンドでデプロイします。
 

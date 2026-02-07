@@ -69,12 +69,12 @@ class Settings(BaseSettings):
     auth_secret: str = ""  # JWT署名用シークレット
 
     # CORS設定
+    # 環境変数: CORS_ORIGINS（カンマ区切り）
+    # 本番環境ではデプロイ時にFirebaseドメインを指定する
     # pydantic-settingsがJSONパースを試みて失敗するのを防ぐため、strも許容する型定義にする
     cors_origins: Annotated[list[str] | str, BeforeValidator(parse_cors_origins)] = [
         "http://localhost:3000",
         "http://localhost:5173",
-        "https://drawing-practice-agent.web.app",
-        "https://drawing-practice-agent.firebaseapp.com",
     ]
 
 

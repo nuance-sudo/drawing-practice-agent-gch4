@@ -72,6 +72,7 @@ def analyze_dessin_image(
     image_url: str,
     rank_label: str = "初学者",
     user_id: str = "",
+    session_id: str = "",
     tool_context: "ToolContext | None" = None,
 ) -> dict[str, object]:
     """デッサン画像を分析し、フィードバックを返す
@@ -83,6 +84,7 @@ def analyze_dessin_image(
         image_url: 分析対象の画像URL（Cloud StorageまたはCloud CDN経由）
         rank_label: ユーザーの現在のランク（例: "10級", "初段"）
         user_id: ユーザーID（メモリ保存用）
+        session_id: セッションID（レビューID、メモリ保存用）
         tool_context: ADKツールコンテキスト（自動注入）
 
     Returns:
@@ -96,7 +98,8 @@ def analyze_dessin_image(
         >>> result = analyze_dessin_image(
         ...     "https://storage.googleapis.com/.../drawing.jpg",
         ...     "5級",
-        ...     "user123"
+        ...     "user123",
+        ...     "review123"
         ... )
         >>> print(result["status"])
         "success"
@@ -107,6 +110,18 @@ def analyze_dessin_image(
     valid_ranks = {r.label for r in Rank}
     if rank_label not in valid_ranks:
         rank_label = Rank.KYU_10.label
+
+    # デバッグログ: ツール呼び出し時に受け取った引数を記録（Issue #74 調査用）
+    logger.info(
+        "analyze_dessin_image_called - DEBUG: 受け取った引数",
+        image_url_preview=image_url[:100] if image_url else "",
+        rank_label=rank_label,
+        user_id=user_id,
+        session_id=session_id,
+        user_id_length=len(user_id),
+        session_id_length=len(session_id),
+        has_tool_context=tool_context is not None,
+    )
 
     try:
         # URL検証
@@ -171,11 +186,15 @@ def analyze_dessin_image(
         effective_user_id = user_id
         if not effective_user_id and tool_context and hasattr(tool_context, "user_id"):
             effective_user_id = tool_context.user_id or ""
-        
+
         if effective_user_id:
-            saved = save_analysis_to_memory(analysis, effective_user_id)
+            saved = save_analysis_to_memory(analysis, effective_user_id, session_id)
             if saved:
-                logger.info("分析結果をMemory Bankに保存: user=%s", effective_user_id)
+                logger.info(
+                    "分析結果をMemory Bankに保存: user=%s, session=%s",
+                    effective_user_id,
+                    session_id,
+                )
 
         return {
             "status": "success",

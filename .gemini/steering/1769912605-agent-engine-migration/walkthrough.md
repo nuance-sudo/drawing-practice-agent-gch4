@@ -86,7 +86,7 @@ Agent Engine用の設定を追加:
 
 Cloud Run環境変数にAgent Engine設定を追加:
 ```yaml
-AGENT_ENGINE_ID: "4011449426684936192"
+AGENT_ENGINE_ID: "<AGENT_ENGINE_ID>"
 AGENT_ENGINE_LOCATION: us-central1
 ```
 
@@ -116,7 +116,7 @@ adk deploy agent_engine \
 ```
 
 **デプロイ結果**:
-- Agent Engine ID: `4011449426684936192`
+- Agent Engine ID: `<AGENT_ENGINE_ID>`
 - リージョン: `us-central1`
 - モデル: `gemini-3-flash-preview`（globalリージョン）
 
@@ -126,8 +126,8 @@ adk deploy agent_engine \
 
 | サービス | ステータス | URL/ID |
 |---------|----------|--------|
-| Agent Engine | ✅ デプロイ完了 | `4011449426684936192` |
-| Cloud Run | ✅ デプロイ完了 | `https://dessin-coaching-agent-333660601649.us-central1.run.app` |
+| Agent Engine | ✅ デプロイ完了 | `<AGENT_ENGINE_ID>` |
+| Cloud Run | ✅ デプロイ完了 | `https://dessin-coaching-agent-<PROJECT_ID>.us-central1.run.app` |
 
 ---
 

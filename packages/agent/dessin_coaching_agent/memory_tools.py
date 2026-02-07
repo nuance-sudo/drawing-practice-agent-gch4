@@ -88,7 +88,7 @@ def search_memory_by_motif(
 
 
 def search_recent_memories(
-    github_username: str,
+    user_id: str,
     limit: int = 5,
 ) -> list[MemoryEntry]:
     """直近のメモリを取得
@@ -96,7 +96,7 @@ def search_recent_memories(
     ユーザーの直近のデッサン分析結果を取得します。
 
     Args:
-        github_username: ユーザーのGitHubユーザー名
+        user_id: ユーザーID
         limit: 取得する最大件数
 
     Returns:
@@ -118,7 +118,7 @@ def search_recent_memories(
         # スコープベースで全メモリを取得
         results = client.agent_engines.memories.retrieve(
             name=engine_name,
-            scope={"user_id": github_username},
+            scope={"user_id": user_id},
         )
 
         memories: list[MemoryEntry] = []
@@ -133,7 +133,7 @@ def search_recent_memories(
 
         logger.info(
             "直近メモリ取得完了: user=%s, count=%d",
-            github_username,
+            user_id,
             len(memories),
         )
         return memories

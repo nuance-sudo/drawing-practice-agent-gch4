@@ -17,13 +17,15 @@ logger = logging.getLogger(__name__)
 
 def save_analysis_to_memory(
     analysis: DessinAnalysis,
-    github_username: str,
+    user_id: str,
+    session_id: str = "",
 ) -> bool:
     """分析結果をメタデータ付きでMemory Bankに保存
 
     Args:
         analysis: デッサン分析結果
-        github_username: ユーザーのGitHubユーザー名（スコープキー）
+        user_id: ユーザーID（スコープキー）
+        session_id: セッションID（レビューID、スコープキー）
 
     Returns:
         保存成功時True、失敗時False
@@ -31,6 +33,16 @@ def save_analysis_to_memory(
     if not settings.agent_engine_id:
         logger.warning("AGENT_ENGINE_ID未設定のためメモリ保存をスキップ")
         return False
+
+    # デバッグログ: メモリ保存に使われるIDを記録（Issue #74 調査用）
+    logger.info(
+        "save_analysis_to_memory_called - DEBUG: 保存に使用するID",
+        user_id=user_id,
+        session_id=session_id,
+        user_id_length=len(user_id),
+        session_id_length=len(session_id),
+        overall_score=analysis.overall_score,
+    )
 
     try:
         client = Client()
@@ -48,13 +60,16 @@ def save_analysis_to_memory(
             f"/reasoningEngines/{settings.agent_engine_id}"
         )
 
-        # スコープを構築
-        scope = {"user_id": github_username}
+        # スコープを構築（user_id + session_idで分離）
+        scope: dict[str, str] = {"user_id": user_id}
+        if session_id:
+            scope["session_id"] = session_id
 
         logger.info(
-            "メモリ保存開始: engine=%s, user=%s, fact_length=%d",
+            "メモリ保存開始: engine=%s, user=%s, session=%s, fact_length=%d",
             engine_name,
-            github_username,
+            user_id,
+            session_id,
             len(fact),
         )
 
@@ -71,7 +86,7 @@ def save_analysis_to_memory(
 
         logger.info(
             "メモリ保存完了: user=%s, motif=%s, score=%.1f, result=%s",
-            github_username,
+            user_id,
             analysis.tags[0] if analysis.tags else "不明",
             analysis.overall_score,
             result,

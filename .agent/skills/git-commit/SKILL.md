@@ -40,31 +40,44 @@ git checkout -b feature/[機能名]
 | `refactor/` | リファクタリング | `refactor/task-service` |
 | `chore/` | 雑務・設定変更 | `chore/update-deps` |
 
-### 2. 作業完了後のwalkthrough作成（コミット前に必須）
+### 2. 機密情報チェック（コミット前に必須）
 
-ステアリングディレクトリにwalkthroughを作成：
+> ⚠️ **コミット前に必ず機密情報が含まれていないか確認**
+>
+> プロジェクトID、リソースID、APIキー等がハードコードされていないか確認してください。
 
-```markdown
-# Walkthrough: [作業タイトル]
+#### チェック対象パターン
 
-## 概要
-[何を変更したかの概要]
+| カテゴリ | パターン例 | 説明 |
+|---------|-----------|------|
+| GCPプロジェクトID | `projects/xxx`, `project_id = "xxx"` | GCPプロジェクト名・ID |
+| リソースID | `reasoningEngines/xxx`, `agents/xxx` | Vertex AI Agent Engine等のリソースID |
+| APIキー | `GOOGLE_API_KEY`, `sk-xxx`, `AIza...` | 各種APIキー・シークレット |
+| 認証情報 | `password`, `secret`, `token` | パスワード・トークン |
+| 接続文字列 | `mongodb://`, `postgresql://` | データベース接続文字列 |
 
-## 変更サマリー
+#### チェックコマンド
 
-| ファイル | 変更内容 |
-|---------|---------| 
-| [ファイルパス] | [変更内容] |
+```bash
+# ステージング済みの変更で機密情報をチェック
+git diff --cached --unified=0 | grep -iE \
+  '(project[_-]?id|GOOGLE_API_KEY|API_KEY|SECRET|PASSWORD|TOKEN|sk-[a-zA-Z0-9]+|AIza[a-zA-Z0-9]+|projects/[a-zA-Z0-9-]+|reasoningEngines/[0-9]+|agents/[a-zA-Z0-9-]+)'
 
-## テスト・検証
-- [x] ローカル動作確認
-- [x] リント・型チェック
+# 結果が空なら OK、出力があれば要確認
+```
 
-## 関連Issue
-- #XX
+#### 発見時の対応
 
-## 次のステップ
-[残タスクがあれば記載]
+1. **環境変数に移動**: 機密値を`.env`や環境変数に移動
+2. **設定ファイル確認**: `config.py`等で`os.environ.get()`を使用しているか確認
+3. **`.gitignore`確認**: `.env`ファイルが除外されているか確認
+
+```python
+# ❌ NG: ハードコード
+PROJECT_ID = "my-gcp-project-123"
+
+# ✅ OK: 環境変数から取得
+PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "")
 ```
 
 ### 3. コミット
@@ -116,24 +129,10 @@ mcp_github-mcp-server_create_pull_request(
 )
 ```
 
-### 6. 関連Issueの更新
 
-PRを作成したら、関連Issueのタスクを完了状態に更新：
+### 6. PRレビュー対応（レビュー指摘があった場合）
 
-```python
-# Issue本文のタスクを完了に更新
-mcp_github-mcp-server_issue_write(
-    method="update",
-    owner="nuance-sudo",
-    repo="drawing-practice-agent-gch4",
-    issue_number=XX,
-    body="## タスク\n- [x] 完了したタスク\n..."
-)
-```
-
-### 7. PRレビュー対応（レビュー指摘があった場合）
-
-#### 7.1 レビューコメントの確認
+#### 6.1 レビューコメントの確認
 
 ```python
 # レビューサマリーを取得
@@ -153,7 +152,7 @@ mcp_github-mcp-server_pull_request_read(
 )
 ```
 
-#### 7.2 指摘のトリアージ（難易度・重要度の整理）
+#### 6.2 指摘のトリアージ（難易度・重要度の整理）
 
 > ⚠️ **すべてのレビュー指摘に対応する必要はない**
 > 
@@ -182,7 +181,7 @@ mcp_github-mcp-server_pull_request_read(
 簡単な修正だけ対応しますか？それともPoCとして現状のままマージしますか？
 ```
 
-#### 7.3 修正とプッシュ
+#### 6.3 修正とプッシュ
 
 ```bash
 # 修正を実施
@@ -199,7 +198,7 @@ git commit -m "fix: レビュー指摘対応
 git push origin [ブランチ名]
 ```
 
-#### 7.4 レビュワーに通知
+#### 6.4 レビュワーに通知
 
 ```python
 # PRにコメントを追加
@@ -211,7 +210,7 @@ mcp_github-mcp-server_add_issue_comment(
 )
 ```
 
-### 8. PRマージ
+### 7. PRマージ
 
 レビュー承認後、PRをマージ：
 
@@ -226,7 +225,7 @@ mcp_github-mcp-server_merge_pull_request(
 )
 ```
 
-### 9. Issueクローズ
+### 8. Issueクローズ
 
 マージ後、関連Issueをクローズ：
 
@@ -241,7 +240,7 @@ mcp_github-mcp-server_issue_write(
 )
 ```
 
-### 10. 次のブランチ作成
+### 9. 次のブランチ作成
 
 マージ後、mainを更新して次のブランチを作成：
 
@@ -287,9 +286,9 @@ git checkout -b feature/step2-gemini-analysis
 
 コミット前：
 - [ ] mainブランチではなく作業ブランチにいる
-- [ ] walkthrough.mdを作成した
+- [ ] **機密情報チェックコマンドを実行した**（手順2参照）
+- [ ] チェック結果に機密情報が含まれていない
 - [ ] コミットメッセージが規約に従っている
-- [ ] 機密情報がコミットされていない
 
 PR作成後：
 - [ ] 関連Issueのタスクを更新した

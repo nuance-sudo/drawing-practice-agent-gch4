@@ -60,6 +60,7 @@ async def process_review_task(task_id: str, user_id: str, image_url: str) -> Non
             image_url=image_url,
             rank_label=current_rank_label,
             user_id=user_id,
+            session_id=task_id,  # レビューIDをセッションIDとして渡す
         )
 
         if result.get("status") == "success":

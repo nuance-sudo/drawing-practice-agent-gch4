@@ -126,11 +126,13 @@ async def call_agent_engine(
     image_url: str,
     rank_label: str,
     user_id: str,
+    session_id: str = "",
 ) -> dict[str, object]:
     """Agent Engineを呼び出してデッサン分析を実行"""
     logger.info(
         "call_agent_engine_started",
         user_id=user_id,
+        session_id=session_id,
         image_url=image_url,
         rank_label=rank_label,
     )
@@ -149,10 +151,12 @@ async def call_agent_engine(
         resource_name = f"projects/{PROJECT_ID}/locations/{AGENT_ENGINE_LOCATION}/reasoningEngines/{AGENT_ENGINE_ID}"
         adk_app = client.agent_engines.get(name=resource_name)
         
-        # メッセージ構築
+        # メッセージ構築（user_idとsession_idを含める）
         message = (
             f"画像URL: {image_url}\n"
             f"ユーザーランク: {rank_label}\n"
+            f"ユーザーID: {user_id}\n"
+            f"セッションID: {session_id}\n"
             "この画像を分析してください。"
         )
         
@@ -335,11 +339,12 @@ async def process_review(payload: TaskPayload) -> None:
         # 現在のランクを取得
         current_rank = get_user_rank(user_id)
         
-        # Agent Engine呼び出し
+        # Agent Engine呼び出し（task_idをsession_idとして渡す）
         result = await call_agent_engine(
             image_url=image_url,
             rank_label=current_rank,
             user_id=user_id,
+            session_id=task_id,
         )
         
         if result.get("status") != "success":
