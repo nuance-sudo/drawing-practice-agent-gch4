@@ -6,14 +6,14 @@
 
 | カテゴリ | 技術 | バージョン | 用途 |
 |----------|------|------------|------|
-| フレームワーク | Next.js | 16.x | React フレームワーク（App Router）|
+| フレームワーク | Next.js | 16.1.x | React フレームワーク（App Router）|
 | 言語 | TypeScript | 5.x | 型安全 |
 | スタイリング | Tailwind CSS | 4.x | ユーティリティCSS |
-| 認証 | Auth.js | 5.x | GitHub OAuth認証 |
+| 認証 | Firebase Authentication | 12.8.x | GitHub OAuth（Firebase Auth） |
 | 状態管理 | Zustand | 5.x | グローバルステート |
-| データフェッチ | SWR | 2.x | キャッシュ・API呼び出し |
-| リアルタイムDB | Firebase SDK | 11.x | Firestoreリアルタイム監視 |
-| ホスティング | Firebase Hosting | - | 静的アセット・SSR |
+| データフェッチ | SWR | 2.3.x | キャッシュ・API呼び出し |
+| リアルタイムDB | Firebase SDK | 12.8.x | Firestoreリアルタイム監視 |
+| ホスティング | 任意 | - | Node.js対応ホスティング（運用選択） |
 
 > **参考**: [aws-samples/generative-ai-use-cases](https://github.com/aws-samples/generative-ai-use-cases)
 
@@ -22,12 +22,15 @@
 | カテゴリ | 技術 | バージョン | 用途 |
 |----------|------|------------|------|
 | 言語 | Python | 3.12+ | エージェント・API実装 |
-| Webフレームワーク | FastAPI | 0.128+ | REST API |
-| AIフレームワーク | Google ADK | 1.18+ | エージェント構築 |
-| AI Platform | google-cloud-aiplatform | 1.133+ | Vertex AI連携 |
+| Webフレームワーク | FastAPI | 0.115+ | REST API |
+| AIフレームワーク | Google ADK | 1.23+ | エージェント構築 |
+| AI Platform | google-cloud-aiplatform | 1.135+ | Vertex AI連携（Agent Engine含む） |
+| LLM SDK | google-genai | 1.61+ | Geminiクライアント |
 | データベース | google-cloud-firestore | 2.23+ | Firestore連携 |
 | ストレージ | google-cloud-storage | 3.8+ | Cloud Storage連携 |
-| バリデーション | Pydantic | 2.12+ | データモデル・設定 |
+| キュー | google-cloud-tasks | 2.18+ | Cloud Tasks連携 |
+| 認証 | firebase-admin | 6.5+ | Firebase IDトークン検証 |
+| バリデーション | Pydantic / pydantic-settings | 2.12+ | データモデル・設定 |
 | ログ | structlog | 25.5+ | 構造化ログ |
 | リトライ | tenacity | 9.0+ | リトライ処理 |
 | ホスティング | Cloud Run | - | サーバーレス実行 |
@@ -48,8 +51,11 @@
 
 | サービス | 用途 |
 |----------|------|
-| Cloud Run | API Server + Agentホスティング |
-| Cloud Run Functions | アノテーション生成、画像生成、タスク完了処理 |
+| Cloud Run | API Server ホスティング |
+| Cloud Run Functions | アノテーション生成、画像生成、タスク完了処理、レビュー処理 |
+| Cloud Tasks | レビュータスクの非同期処理、バックグラウンドジョブキュー |
+| Agent Engine | Vertex AI Agent Engine（エージェントデプロイ） |
+| Memory Bank | Vertex AI Memory Bank（成長トラッキング用長期記憶） |
 | Cloud Storage | 画像ストレージ |
 | Cloud CDN | 画像配信（高速・グローバル） |
 | Firestore | タスク管理（review_tasks）、ユーザーランク管理 |
@@ -62,10 +68,9 @@
 
 | サービス | 用途 |
 |----------|------|
-| Firebase Hosting | ウェブアプリホスティング |
+| Web Hosting（任意） | ウェブアプリホスティング |
 | GitHub API | PR連携（オプション） |
 | GitHub Actions | PRトリガー（オプション） |
-| GitHub App | 認証（オプション） |
 
 ---
 
@@ -77,7 +82,7 @@
 |--------|------|
 | VS Code / Cursor | IDE |
 | uv | Pythonパッケージ管理 |
-| pnpm | Node.jsパッケージ管理 |
+| npm | Node.jsパッケージ管理 |
 | Docker | ローカル開発・テスト |
 | gcloud CLI | GCPリソース操作 |
 
@@ -86,8 +91,8 @@
 ```mermaid
 flowchart LR
     subgraph Frontend["フロントエンド"]
-        A1[Push to main] --> B1[Firebase Hosting]
-        B1 --> C1[GitHub Actions / Cloud Build]
+        A1[Push to main] --> B1[Web Hosting]
+        B1 --> C1[CI/CD]
     end
     
     subgraph Backend["バックエンド"]
@@ -119,9 +124,9 @@ uv run mypy .
 uv run pytest tests/ -v
 
 # Frontend - TypeScript
-pnpm lint
-pnpm build
-pnpm test
+npm run lint
+npm run build
+npm test
 ```
 
 ---
@@ -192,10 +197,15 @@ flowchart TB
         E[Firestore<br/>review_tasks]
     end
     
-    subgraph CloudFunctions["Cloud Functions"]
+    subgraph CloudFunctions["Cloud Run Functions"]
         F0[annotate-image]
         F1[generate-image]
         F2[complete-task]
+        F3[process-review]
+    end
+    
+    subgraph CloudTasks["Cloud Tasks"]
+        T1[review-queue]
     end
 
     subgraph External["External Services"]
@@ -235,39 +245,38 @@ flowchart TB
         A[ブラウザ]
     end
 
-    subgraph GitHub["GitHub"]
-        H[GitHub OAuth]
+    subgraph Firebase["Firebase Auth"]
+        B[GitHub OAuth Provider]
+        C[ID Token 発行]
     end
 
-    subgraph Firebase["Firebase Hosting"]
-        B[Next.js + Auth.js]
+    subgraph Web["Web App (Next.js)"]
+        D[Firebase JS SDK]
     end
 
     subgraph GCP["Google Cloud"]
-        C[Cloud Run API]
-        D[Secret Manager]
-        E[Service Account]
-        F[Eventarc]
-        G[Cloud Run Agent]
+        E[Cloud Run API]
+        F[Firebase Admin SDK]
+        G[Service Account]
+        H[Secret Manager]
     end
 
-    A -->|1. ログイン| B
-    B -->|2. OAuth認証| H
-    H -->|3. アクセストークン| B
-    B -->|4. JWT生成| A
-    A -->|5. API Call + JWT| C
-    C -->|JWT検証| C
-    C -->|サービスアカウント| E
-    E -->|GetSecretValue| D
+    A -->|1. ログイン| D
+    D -->|2. OAuth認証| B
+    B -->|3. ID Token| C
+    C -->|4. ID Token| A
+    A -->|5. API Call + Bearer| E
+    E -->|6. verify_id_token| F
+    E -->|サービスアカウント| G
+    G -->|GetSecretValue| H
 ```
 
 | 項目 | 実装 |
 |------|------|
-| ユーザー認証 | Auth.js + GitHub OAuth |
-| API認証 | JWT（Auth.jsセッション）|
-| Cloud Functions | サービスアカウント |
+| ユーザー認証 | Firebase Authentication（GitHub Provider） |
+| API認証 | Firebase ID Token（Bearer） |
+| Cloud Functions | サービスアカウント（OIDC） |
 | Vertex AI認証 | サービスアカウント（自動） |
-| GitHub認証 | GitHub OAuth（Auth.js）|
 
 ### データ保護
 
@@ -344,26 +353,33 @@ name = "dessin-coaching-agent"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "google-adk>=0.1.0",
-    "google-cloud-aiplatform>=1.0.0",
-    "google-cloud-firestore>=2.0.0",
-    "google-cloud-storage>=2.0.0",
-    "google-cloud-secret-manager>=2.0.0",
-    "fastapi>=0.115.0",
-    "uvicorn>=0.32.0",
-    "httpx>=0.27.0",
-    "pydantic>=2.0.0",
-    "structlog>=24.0.0",
+    "google-adk>=1.23.0",
+    "google-cloud-aiplatform[agent_engines,adk]>=1.135.0",
+    "google-genai>=1.61.0",
+    "google-cloud-firestore>=2.23.0",
+    "google-cloud-storage>=3.8.0",
+    "google-cloud-secret-manager>=2.21.0",
+    "google-cloud-tasks>=2.18.0",
+    "fastapi>=0.115.0,<0.124.0",
+    "uvicorn[standard]>=0.39.0",
+    "httpx>=0.28.0",
+    "aiohttp>=3.10.0",
+    "pydantic>=2.12.0",
+    "pydantic-settings>=2.7.0",
+    "structlog>=25.5.0",
     "tenacity>=9.0.0",
     "pillow>=11.0.0",
-    "pywebpush>=2.0.0",
+    "python-multipart>=0.0.18",
+    "pyjwt>=2.8.0",
+    "firebase-admin>=6.5.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0.0",
+    "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
-    "mypy>=1.0.0",
+    "pytest-cov>=6.0.0",
+    "mypy>=1.14.0",
     "ruff>=0.8.0",
 ]
 ```
@@ -373,22 +389,25 @@ dev = [
 ```json
 {
   "dependencies": {
-    "next": "^16.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "firebase": "^11.0.0",
-    "next-auth": "^5.0.0",
-    "zustand": "^5.0.0",
-    "swr": "^2.3.0",
-    "tailwind-merge": "^2.4.0"
+    "next": "16.1.3",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "firebase": "^12.8.0",
+    "zustand": "^5.0.10",
+    "swr": "^2.3.8",
+    "tailwind-merge": "^3.4.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.562.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.5",
-    "tailwindcss": "^4.0.0",
-    "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0",
-    "eslint": "^9.0.0",
-    "eslint-config-next": "^16.0.0"
+    "typescript": "^5",
+    "tailwindcss": "^4",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.3"
   }
 }
 ```
@@ -402,25 +421,33 @@ dev = [
 | 変数名 | 説明 | 取得元 |
 |--------|------|--------|
 | `GCP_PROJECT_ID` | GCPプロジェクトID | 環境 |
-| `STORAGE_BUCKET` | Cloud Storageバケット名 | 環境 |
+| `GCP_REGION` | GCPリージョン | 環境 |
+| `GCS_BUCKET_NAME` | Cloud Storageバケット名 | 環境 |
 | `CDN_BASE_URL` | Cloud CDNのベースURL | 環境 |
 | `FIRESTORE_DATABASE` | Firestoreデータベース名 | 環境 |
-| `VAPID_PUBLIC_KEY` | Web Push用公開鍵 | 環境 |
-| `VAPID_PRIVATE_KEY_SECRET_ID` | 秘密鍵のSecret ID | 環境 |
-| `GITHUB_APP_SECRET_ID` | GitHub App秘密鍵（オプション） | 環境 |
+| `PROCESS_REVIEW_FUNCTION_URL` | process-review関数URL | 環境 |
+| `ANNOTATION_FUNCTION_URL` | annotate-image関数URL | 環境 |
+| `IMAGE_GENERATION_FUNCTION_URL` | generate-image関数URL | 環境 |
+| `AGENT_ENGINE_ID` | Agent EngineリソースID | 環境 |
+| `AGENT_ENGINE_LOCATION` | Agent Engineリージョン | 環境 |
+| `CLOUD_TASKS_LOCATION` | Cloud Tasksリージョン | 環境 |
+| `CLOUD_TASKS_QUEUE_NAME` | Cloud Tasksキュー名 | 環境 |
+| `GEMINI_MODEL` | Geminiモデル名 | 環境 |
+| `AUTH_ENABLED` | Firebase認証有効化 | 環境 |
+| `CORS_ORIGINS` | CORS許可オリジン | 環境 |
 
-### フロントエンド（Firebase Hosting）
+### フロントエンド
 
 | 変数名 | 説明 |
 |--------|------|
-| `NEXT_PUBLIC_API_BASE_URL` | APIサーバーのURL |
+| `NEXT_PUBLIC_API_URL` | APIサーバーのURL（優先） |
+| `NEXT_PUBLIC_API_BASE_URL` | APIサーバーのURL（互換） |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase API Key |
 | `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Auth Domain |
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase Project ID |
 | `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase Storage Bucket |
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase Messaging Sender ID |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase App ID |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Web Push用公開鍵（オプション）|
 
 ---
 
@@ -475,6 +502,6 @@ gcloud run deploy dessin-coaching-agent \
 - [x] **Firestore** - タスク・ランク管理
 - [x] **Secret Manager** - 秘密鍵管理
 - [x] **Cloud Logging** - ログ出力
-- [ ] Firebase Auth - 将来実装
+- [x] Firebase Auth - GitHub Provider
 - [ ] Flutter - モバイルアプリ（将来）
 - [ ] Veo - 未使用

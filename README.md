@@ -18,20 +18,41 @@ Google Cloud の最新AI技術（Gemini, ADK, Vertex AI）を駆使した、美�
 
 ## 🚀 主な機能
 
-1. **高度なデッサン分析** (Gemini 3.0 Flash Preview)
-   - プロポーション、陰影、線の質、質感表現を多角的に評価
-   - 技術的な改善提案を提供
+1. **アプリから審査依頼**
+   - 画像をアップロードするだけで審査が開始
 
-2. **お手本画像の生成** (Gemini 2.5 Flash Image)
-   - 改善点を反映した「修正後のイメージ」を生成
-   - 視覚的に理解できるフィードバック
+2. **AIによるデッサン分析とフィードバック**
+   - 形・陰影・線の質などをわかりやすく解説
 
-3. **ランク制度**
-   - 80点以上でランクアップ（10級〜師範）
-   - ランクに応じた評価基準の調整
+3. **改善ポイントの可視化**
+   - どこを直すと良いかを画像で示す
 
-4. **Web Push通知**
-   - 審査完了時にブラウザ通知
+4. **お手本画像の生成**
+   - 修正後のイメージを提示して理解をサポート
+
+5. **成長の可視化とランク**
+   - 過去の提出と比較して上達を実感
+
+## 📷 アプリケーション画面
+
+![アプリケーションヘッダー](docs/images/header.png)
+![フィードバック詳細](docs/images/detail.png)
+
+## 🧭 体験フロー
+
+1. ウェブアプリでデッサン画像をアップロード
+2. アプリケーションで審査を実行し、フィードバック詳細に結果を表示
+3. Geminiでデッサン分析 → フィードバック生成
+4. Agentic Visionでアノテーション画像を生成
+5. お手本画像を生成して改善点を視覚化
+
+## 🧪 サンプル
+
+以下のサンプル画像で試せます。
+
+- `docs/samples/sample1.jpg`
+- `docs/samples/sample2.jpg`
+- `docs/samples/sample3.png`
 
 ## 🏗️ アーキテクチャ
 
@@ -42,7 +63,7 @@ flowchart TB
     end
 
     subgraph Firebase["Firebase"]
-        B[ウェブアプリ<br/>React + PWA]
+        B[ウェブアプリ<br/>Next.js + PWA]
     end
 
     subgraph GCP["Google Cloud"]
@@ -65,18 +86,19 @@ flowchart TB
 ```
 packages/
 ├── agent/    # エージェント・API実装（Python/ADK）
-├── web/      # ウェブアプリ実装（React/Vite）
-└── infra/    # インフラ定義（Terraform/gcloud）
+├── web/      # ウェブアプリ実装（Next.js）
+├── functions/# Cloud Run Functions実装（Python）
+└── infra/    # インフラ定義（gcloud/補助スクリプト）
 ```
 
 ### 技術スタック
 
 | カテゴリ | 技術 |
 |---------|------|
-| **Frontend** | React 19, Vite 7, Tailwind CSS 4, Zustand 5, SWR |
+| **Frontend** | Next.js 16, React 19, Tailwind CSS 4, Zustand 5, SWR |
 | **Backend** | Python 3.12+, FastAPI, Google ADK |
 | **AI Models** | gemini-3-flash-preview, gemini-2.5-flash-image |
-| **Infrastructure** | Cloud Run, Cloud Run Functions, Cloud Storage, Cloud CDN, Firestore |
+| **Infrastructure** | Cloud Run, Cloud Run Functions, Cloud Tasks, Cloud Storage, Cloud CDN, Firestore, Agent Engine, Memory Bank |
 | **Hosting** | Firebase Hosting (Web), Cloud Run (API/Agent) |
 
 ## 📂 ドキュメント
@@ -87,11 +109,14 @@ packages/
 | [functional-design.md](docs/functional-design.md) | 機能設計書 |
 | [architecture.md](docs/architecture.md) | 技術仕様書 |
 | [repository-structure.md](docs/repository-structure.md) | リポジトリ構造 |
+| [agent-flow.md](docs/agent-flow.md) | エージェント処理フロー |
+| [development-guidelines.md](docs/development-guidelines.md) | 開発ガイドライン |
+| [glossary.md](docs/glossary.md) | 用語集 |
 
 ## 🏁 始め方
 
 ### 前提条件
-- Node.js 20+, pnpm
+- Node.js 20+, npm
 - Python 3.12+, uv
 - Google Cloud アカウント
 - gcloud CLI
@@ -105,25 +130,26 @@ cd drawing-practice-agent-gch4
 
 # 依存関係インストール
 cd packages/agent && uv sync
-cd ../web && pnpm install
+cd ../web && npm install
 ```
 
 ### 開発サーバー起動
 
 ```bash
-# ルートから
-make dev
+# Backend
+cd packages/agent
+uv run adk api_server
+
+# Frontend
+cd ../web
+npm run dev
 ```
 
 ### デプロイ
 
 ```bash
-# 全体デプロイ
-make deploy-all
-
-# 個別デプロイ
-make deploy-agent
-make deploy-web
+# デプロイ手順
+cat packages/infra/DEPLOY_GUIDE.md
 ```
 
 ## 🛠️ 開発ガイド

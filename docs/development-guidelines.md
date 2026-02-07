@@ -2,7 +2,7 @@
 
 ## 概要
 
-本ドキュメントは、プロジェクトにおけるコーディング規約、命名規則、テスト規約、Git規約を定義します。
+本ドキュメントは、プロジェクトにおけるコーディング規約、命名規則、テスト規約、Git規約、開発運用の指針を定義します。
 
 ---
 
@@ -11,7 +11,7 @@
 ### Python バージョン
 
 - **Python 3.12+** を使用
-- 型ヒントを積極的に使用（`any`型は禁止）
+- 型ヒントを積極的に使用（`Any`型の乱用は禁止）
 
 ### フォーマッター / リンター
 
@@ -27,13 +27,13 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "ARG", "SIM"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 warn_return_any = true
-warn_unused_ignores = true
+warn_unused_configs = true
 ```
 
 ### コードスタイル
@@ -61,7 +61,7 @@ from src.services.gemini_service import GeminiService
 def analyze_dessin(image_data: bytes, user_rank: int) -> DessinAnalysis:
     ...
 
-# ❌ 悪い例: any型の使用（禁止）
+# ❌ 悪い例: Any型の乱用
 def analyze_dessin(image_data, user_rank) -> Any:
     ...
 ```
@@ -190,14 +190,14 @@ wait_time = 2 ** attempt
 ### ファイル構成
 
 ```
-tests/
-├── conftest.py              # 共通fixture
-├── test_agent.py            # エージェントテスト
-├── test_services/
-│   ├── test_gemini_service.py
-│   └── test_rank_service.py
-└── test_tools/
-    └── test_github_tool.py
+packages/agent/tests/
+├── conftest.py
+├── test_feedback_service.py
+├── test_image_generation_service.py
+├── test_integration.py
+├── test_memory_tools.py
+├── test_rank_service.py
+└── test_task_service.py
 ```
 
 ### テスト命名
@@ -309,65 +309,62 @@ Closes #123
 
 ## 開発コマンド
 
-### Makefile
+### パッケージ別コマンド
 
-```makefile
-.PHONY: install lint test format typecheck all
-
-install:
-	cd agent && uv sync
-
-lint:
-	cd agent && uv run ruff check .
-
-format:
-	cd agent && uv run ruff format .
-
-typecheck:
-	cd agent && uv run mypy src/
-
-test:
-	cd agent && uv run pytest tests/ -v
-
-all: format lint typecheck test
-```
+ルートの統合Makefileはありません。各パッケージ配下で実行します。
 
 ### 日常的な開発フロー
 
 ```bash
-# 1. 依存関係インストール
-make install
+# Backend
+cd packages/agent
+uv sync
+uv run ruff format .
+uv run ruff check .
+uv run mypy .
+uv run pytest tests/ -v
 
-# 2. コード変更後
-make format    # フォーマット
-make lint      # リント
-make typecheck # 型チェック
-make test      # テスト
-
-# 3. 全チェック
-make all
+# Frontend
+cd packages/web
+npm install
+npm run lint
+npm run build
 ```
 
 ---
 
 ## ローカル開発
 
-### 環境変数
+### 環境変数（APIサーバー）
 
 ```bash
-# agent/.env
-GOOGLE_CLOUD_PROJECT=your-project-id
-GOOGLE_CLOUD_LOCATION=asia-northeast1
-GOOGLE_GENAI_USE_VERTEXAI=true
-GITHUB_APP_ID=123456
-GITHUB_APP_INSTALLATION_ID=789012
+# packages/agent/.env
+GCP_PROJECT_ID=your-project-id
+GCP_REGION=global
+FIRESTORE_DATABASE=(default)
+GCS_BUCKET_NAME=your-bucket
+CDN_BASE_URL=https://cdn.example.com
+PROCESS_REVIEW_FUNCTION_URL=https://...
+ANNOTATION_FUNCTION_URL=https://...
+IMAGE_GENERATION_FUNCTION_URL=https://...
+AGENT_ENGINE_ID=your-agent-engine-id
+AGENT_ENGINE_LOCATION=us-central1
+CLOUD_TASKS_LOCATION=us-central1
+CLOUD_TASKS_QUEUE_NAME=review-processing-queue
+GEMINI_MODEL=gemini-3-flash-preview
+AUTH_ENABLED=true
+CORS_ORIGINS=http://localhost:3000
 ```
+
+### 認証（ローカル開発）
+
+- `AUTH_ENABLED=false` の場合、`X-User-ID` ヘッダーでモック認証が可能
 
 ### ADK開発サーバー
 
 ```bash
 # Web UI起動
-cd agent
+cd packages/agent
 uv run adk web
 
 # API Server起動
@@ -376,6 +373,12 @@ uv run adk api_server
 # 直接実行
 uv run adk run
 ```
+
+---
+
+## デプロイ手順
+
+デプロイは `packages/infra/DEPLOY_GUIDE.md` を参照してください。
 
 ---
 

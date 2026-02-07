@@ -52,7 +52,7 @@
 | 5 | デッサン分析・評価 | Vertex AI（gemini-3-flash-preview）の画像理解機能でデッサンを分析・評価 | P0 |
 | 6 | 改善提案生成 | プロポーション、陰影、線の質等の改善点をテキストでフィードバック | P0 |
 | 7 | タスク管理・結果表示 | 非同期処理のタスク化、ウェブアプリでの結果表示 | P0 |
-| 8 | プッシュ通知 | Web Push APIで審査完了をユーザーに通知 | P0 |
+| 8 | プッシュ通知 | Web Push APIで審査完了をユーザーに通知（将来検討） | P2 |
 
 ### 補助機能
 
@@ -176,7 +176,7 @@
 
 ### FR-001: ウェブアプリ
 - React + Vite + Tailwind CSS + Zustand + SWR構成
-- Firebase Hostingでホスティング（GitHub連携CI/CD）
+- Web Hostingでホスティング（CI/CDは運用選択）
 - PWA対応（Service Worker）
 - レスポンシブデザイン
 
@@ -213,12 +213,10 @@
 ### FR-007: タスク管理
 - Firestoreでタスク状態を管理
 - ステータス: pending → processing → completed / failed
-- SWRでポーリング監視
+- Firestoreリアルタイム監視（onSnapshot）
 
 ### FR-008: プッシュ通知
-- Web Push API + Service Worker
-- 審査完了時に通知
-- ブラウザの通知許可フロー
+- 将来検討（現行仕様では未実装）
 
 ### FR-009: ランク管理
 - ユーザーごとのランク情報を永続化（Firestore）
@@ -274,5 +272,5 @@
 - **Artifact Registry**: コンテナイメージ管理
 
 ### 外部サービス
-- **Firebase Hosting**: ウェブアプリホスティング
+- **Web Hosting（任意）**: ウェブアプリホスティング
 - **GitHub**: オプション機能用（PR連携）

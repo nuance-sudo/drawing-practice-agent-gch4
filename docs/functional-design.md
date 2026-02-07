@@ -16,8 +16,8 @@ flowchart TB
         A[ユーザー<br/>ブラウザ]
     end
 
-    subgraph Firebase["Firebase"]
-        B[ウェブアプリ<br/>React + PWA]
+    subgraph Web["Web App"]
+        B[ウェブアプリ<br/>Next.js]
     end
 
     subgraph GCP["Google Cloud"]
@@ -49,7 +49,7 @@ flowchart TB
 
     A -->|審査依頼| B
     B -->|API Call| F
-    F -->|画像保存| C
+    B -->|署名付きURLでアップロード| C
     F -->|分析リクエスト| K
     F -->|アノテーション生成| G
     G -->|Agentic Vision| K
@@ -59,7 +59,7 @@ flowchart TB
     G -->|画像保存| C
     G -->|タスク更新| H
     F -->|ランク更新| H
-    F -->|Web Push| A
+    
 ```
 
 ---
@@ -71,48 +71,53 @@ flowchart TB
 ```mermaid
 sequenceDiagram
     participant User as ユーザー
-    participant Web as ウェブアプリ<br/>(Firebase Hosting)
+    participant Web as ウェブアプリ<br/>(Next.js)
     participant API as API Server<br/>(Cloud Run)
-    participant GCS as Cloud Storage
-    participant Gemini as Vertex AI<br/>(gemini-3-flash-preview)
-    participant AnnotateFunc as Cloud Functions<br/>(annotate-image)
-    participant GenFunc as Cloud Functions<br/>(generate-image)
-    participant ImageGen as Vertex AI<br/>(gemini-2.5-flash-image)
     participant DB as Firestore
+    participant Queue as Cloud Tasks
+    participant ProcFunc as Cloud Run Functions<br/>(process-review)
+    participant Gemini as Vertex AI<br/>(gemini-3-flash-preview)
+    participant AnnotateFunc as Cloud Run Functions<br/>(annotate-image)
+    participant GenFunc as Cloud Run Functions<br/>(generate-image)
+    participant CompleteFunc as Cloud Run Functions<br/>(complete-task)
+    participant ImageGen as Vertex AI<br/>(gemini-2.5-flash-image)
+    participant GCS as Cloud Storage
 
     User->>Web: 画像アップロード
-    Web->>API: POST /reviews
-    API->>GCS: 画像保存
+    Web->>API: GET /reviews/upload-url
+    API-->>Web: upload_url / public_url
+    Web->>GCS: PUT upload_url
+    Web->>API: POST /reviews {image_url}
     API->>DB: タスク作成 (pending)
+    API->>Queue: Cloud Tasks投入
     API-->>Web: タスクID返却
     
     Note over User,Web: Firestoreリアルタイム監視開始
     
-    API->>DB: タスク更新 (processing)
-    API->>Gemini: デッサン分析リクエスト
-    Gemini-->>API: 分析結果
-    API->>DB: ランク更新・分析データ保存
+    Queue->>ProcFunc: タスク実行
+    ProcFunc->>DB: タスク更新 (processing)
+    ProcFunc->>Gemini: デッサン分析リクエスト
+    Gemini-->>ProcFunc: 分析結果
+    ProcFunc->>DB: ランク更新・分析データ保存
     
-    Note over API: フェーズ2: Agentic Visionによるアノテーション
-    API->>AnnotateFunc: POST /annotate-image
+    Note over ProcFunc: フェーズ2: Agentic Visionによるアノテーション
+    ProcFunc->>AnnotateFunc: POST /annotate-image
     AnnotateFunc->>Gemini: Agentic Vision (code_execution)
     Note over Gemini: バウンディングボックス描画
     Gemini-->>AnnotateFunc: アノテーション画像
     AnnotateFunc->>GCS: アノテーション画像保存
     AnnotateFunc->>DB: annotated_image_url保存
-    AnnotateFunc-->>API: annotated_image_url返却
+    AnnotateFunc-->>ProcFunc: annotated_image_url返却
 
-    Note over API: フェーズ3: お手本画像生成（アノテーション参照）
-    API->>GenFunc: POST /generate-image<br/>(元画像 + アノテーション画像)
+    Note over ProcFunc: フェーズ3: お手本画像生成（アノテーション参照）
+    ProcFunc->>GenFunc: POST /generate-image<br/>(元画像 + アノテーション画像)
     GenFunc->>GCS: 元画像・アノテーション画像取得
     GenFunc->>ImageGen: お手本画像生成リクエスト<br/>(両画像を入力)
     ImageGen-->>GenFunc: 生成画像
     GenFunc->>GCS: 生成画像保存
-    GenFunc->>GenFunc: POST /complete-task
-    GenFunc->>DB: タスク更新 (completed, score, example_url)
+    GenFunc->>CompleteFunc: POST /complete-task
+    CompleteFunc->>DB: タスク更新 (completed, score, example_url)
     
-    API->>User: Web Push通知
-
     User->>Web: 結果確認
     Web->>API: GET /reviews/{taskId}
     API->>DB: タスク取得
@@ -142,8 +147,8 @@ flowchart TB
     H -->|Yes| K[生成画像保存]
     J --> L[タスク更新: completed]
     K --> L
-    C --> M[Web Push: エラー通知]
-    L --> N[Web Push: 完了通知]
+    C --> M[エラー完了]
+    L --> N[完了]
 ```
 
 
@@ -151,49 +156,57 @@ flowchart TB
 
 ## コンポーネント設計
 
-### 1. ウェブアプリ（Firebase Hosting）
+### 1. ウェブアプリ（Next.js）
 
-**責務**: ユーザーインターフェース、画像アップロード、結果表示、プッシュ通知
+**責務**: ユーザーインターフェース、画像アップロード、結果表示
 
 **技術スタック**:
 - React 19.x
 - Next.js 16.x (App Router)
 - TypeScript 5.x
 - Tailwind CSS 4.x
-- Firebase Authentication (GitHub)
+- Firebase Authentication (GitHub Provider)
 - Zustand 5.x（状態管理）
-- SWR 2.x（データフェッチ・ポーリング）
+- SWR 2.x（API呼び出し補助）
 
 ```
 packages/web/
 ├── app/
-│   ├── api/
-│   │   └── auth/
-│   │       └── [...nextauth]/
-│   │           └── route.ts    # API Routes
 │   ├── (authenticated)/        # 認証必須ページ
-│   │   ├── review/
-│   │   │   └── page.tsx
-│   │   ├── history/
-│   │   │   └── page.tsx
-│   │   └── layout.tsx
-│   ├── page.tsx                # ホーム（ログイン）
-│   └── layout.tsx              # ルートレイアウト
+│   │   └── review/
+│   │       └── page.tsx
+│   ├── favicon.ico
+│   ├── globals.css
+│   ├── layout.tsx              # ルートレイアウト
+│   └── page.tsx                # ホーム（ログイン）
 ├── components/                 # UIコンポーネント
-│   ├── ImageUpload.tsx
-│   ├── FeedbackDisplay.tsx
-│   ├── TaskList.tsx
-│   └── RankBadge.tsx
+│   ├── auth-provider.tsx
+│   ├── login-button.tsx
+│   ├── common/
+│   │   ├── Button.tsx
+│   │   └── UserProfileMenu.tsx
+│   └── features/
+│       ├── dashboard/
+│       │   ├── CalendarFilter.tsx
+│       │   ├── TagSidebar.tsx
+│       │   ├── TaskGrid.tsx
+│       │   └── UploadSection.tsx
+│       ├── review/
+│       │   ├── ExampleImageDisplay.tsx
+│       │   └── FeedbackDisplay.tsx
+│       └── upload/
+│           └── ImageUpload.tsx
 ├── stores/                     # Zustandストア
+│   ├── auth-store.ts
 │   └── taskStore.ts
 ├── hooks/                      # カスタムフック
-│   ├── useTaskRealtime.ts      # Firestoreリアルタイム監視
-│   └── usePushNotification.ts
+│   ├── useRank.ts
+│   └── useTasks.ts             # Firestoreリアルタイム監視
 ├── lib/
 │   ├── firebase.ts             # Firebase初期化
 │   └── api.ts                  # API呼び出し
 ├── public/
-│   └── sw.js                   # Service Worker
+│   └── ...
 ├── package.json
 ├── next.config.ts
 └── tailwind.config.ts
@@ -208,100 +221,121 @@ agent/
 ├── src/
 │   ├── main.py           # FastAPIエントリーポイント
 │   ├── api/
-│   │   ├── reviews.py    # 審査API
-│   │   ├── tasks.py      # タスクAPI
-│   │   └── users.py      # ユーザーAPI
+│   │   └── reviews.py    # 審査API
 │   └── ...
 ```
 
-### 3. Coaching Agent（Cloud Run）
+### 3. Coaching Agent（Vertex AI Agent Engine）
 
 **責務**: 画像分析、フィードバック生成、画像生成のオーケストレーション
 
 ```
 agent/
-├── src/
-│   ├── agent.py          # ADK Agent定義
-│   ├── tools/
-│   │   ├── storage_tool.py   # Cloud Storage操作
-│   │   └── image_tool.py     # 画像処理
-│   ├── prompts/
-│   │   └── coaching.py   # コーチング用プロンプト
-│   ├── services/
-│   │   ├── gemini_service.py # Vertex AI連携
-│   │   ├── rank_service.py   # ランク管理
-│   │   ├── task_service.py   # タスク管理
-│   │   ├── push_service.py   # Web Push通知
-│   │   └── feedback_service.py
-│   └── models/
-│       ├── task.py       # タスクモデル
-│       ├── feedback.py   # フィードバックモデル
-│       └── rank.py       # ランクモデル
+├── dessin_coaching_agent/
+│   ├── agent.py          # root_agent定義
+│   ├── tools.py          # analyze_dessin_image
+│   ├── memory_tools.py   # Memory Bank検索
+│   ├── callbacks.py      # Memory Bank保存
+│   ├── prompts.py        # コーチング用プロンプト
+│   └── models.py         # DessinAnalysis 等
 ```
 
-### 4. ADK Agent構成
+### 4. ADK Agent構成（現在の実装）
+
+ADKのAgent関数ベースで実装されています。Vertex AI Agent Engineにデプロイし、Memory Bank統合と成長トラッキングを実現しています。
 
 ```python
-# agent.py
-from google.adk import Agent, Tool
+# dessin_coaching_agent/agent.py
+from google.adk.agents import Agent
+from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 
-class DessinCoachingAgent(Agent):
-    """鉛筆デッサンコーチングエージェント
+from .config import settings
+from .custom_gemini import GlobalGemini
+from .memory_tools import search_memory_by_motif, search_recent_memories
+from .prompts import get_dessin_analysis_system_prompt
+from .tools import analyze_dessin_image
+
+# globalリージョン用Geminiモデル
+gemini_model = GlobalGemini(model=settings.gemini_model)
+
+# Memory Bankからユーザーの過去メモリを自動プリロードするツール
+preload_memory_tool = PreloadMemoryTool()
+
+# ルートエージェント定義（ADK規約）
+root_agent = Agent(
+    name="dessin_coaching_agent",
+    model=gemini_model,
+    description="鉛筆デッサンを分析し、改善フィードバックを提供するコーチングエージェント",
+    instruction=get_dessin_analysis_system_prompt(),
+    tools=[
+        analyze_dessin_image,
+        preload_memory_tool,
+        search_memory_by_motif,
+        search_recent_memories,
+    ],
+)
+```
+
+#### エージェントツール一覧
+
+| ツール名 | 責務 | 説明 |
+|----------|------|------|
+| `analyze_dessin_image` | デッサン分析 | 画像URLを受け取り、Gemini APIで分析後、成長スコア補正して結果を返す |
+| `preload_memory_tool` | メモリプリロード | セッション開始時に過去メモリをプリロード |
+| `search_memory_by_motif` | モチーフ別検索 | 同じモチーフの過去提出を検索 |
+| `search_recent_memories` | 直近メモリ検索 | ユーザーの直近の提出履歴を取得 |
+
+#### Memory Bank統合
+
+Vertex AI Memory Bankを使用して、ユーザーの過去の提出履歴を長期記憶として保存・検索します。
+
+```python
+# dessin_coaching_agent/callbacks.py
+def save_analysis_to_memory(
+    analysis: DessinAnalysis,
+    user_id: str,
+    session_id: str = "",
+) -> bool:
+    """分析結果をメタデータ付きでMemory Bankに保存
     
-    Thinking機能を使用して、デッサン分析の推論プロセスを透明化。
+    保存されるメタデータ:
+    - motif: モチーフ名
+    - overall_score: 総合スコア
+    - proportion_score, tone_score, texture_score, line_quality_score
+    - growth_score: 成長スコア
+    - submitted_at: 提出日時
     """
+    ...
+```
+
+```python
+# dessin_coaching_agent/memory_tools.py
+def search_memory_by_motif(motif: str, user_id: str) -> list[MemoryEntry]:
+    """モチーフでフィルタしたメモリを取得"""
+    ...
+
+def search_recent_memories(user_id: str, limit: int = 5) -> list[MemoryEntry]:
+    """直近のメモリを取得（新しい順）"""
+    ...
+```
+
+#### 成長トラッキング機能
+
+過去の提出と比較して成長を評価する5つ目の採点項目として実装されています。
+
+```python
+# dessin_coaching_agent/tools.py
+def _calculate_growth_from_memories(
+    analysis: DessinAnalysis,
+    past_memories: list[MemoryEntry],
+) -> DessinAnalysis:
+    """過去メモリと比較して成長スコアを計算
     
-    def __init__(self):
-        super().__init__(
-            name="dessin-coaching-agent",
-            model="gemini-3-flash-preview",
-            description="鉛筆デッサンを分析し、改善フィードバックを提供するエージェント",
-            generate_content_config={
-                "max_output_tokens": 32000,
-                "temperature": 1.0,
-                "thinking_config": {
-                    "thinking_budget_tokens": 8192
-                }
-            },
-            tools=[
-                self.fetch_image,
-                self.analyze_dessin,
-                self.generate_feedback,
-                self.generate_example_image,
-                self.update_task,
-                self.send_push_notification,
-            ]
-        )
-    
-    @Tool
-    def fetch_image(self, image_url: str) -> bytes:
-        """Cloud CDNから画像を取得"""
-        ...
-    
-    @Tool
-    def analyze_dessin(self, image_data: bytes) -> dict:
-        """デッサン画像を分析"""
-        ...
-    
-    @Tool
-    def generate_feedback(self, analysis: dict, rank: str) -> str:
-        """フィードバックを生成"""
-        ...
-    
-    @Tool
-    def generate_example_image(self, image_data: bytes, improvements: list) -> str:
-        """お手本画像を生成"""
-        ...
-    
-    @Tool
-    def update_task(self, task_id: str, status: str, data: dict) -> bool:
-        """Firestoreのタスクを更新"""
-        ...
-    
-    @Tool
-    def send_push_notification(self, user_id: str, message: str) -> bool:
-        """Web Push通知を送信"""
-        ...
+    計算ロジック:
+    - 成長スコア = 50 + (現在スコア - 過去平均スコア)
+    - 50点 = 維持、50以上 = 成長、50未満 = 後退
+    """
+    ...
 ```
 
 ### 5. 処理ノード構成
@@ -318,7 +352,6 @@ flowchart LR
         G --> H[SaveImage]
         H --> I[UpdateRank]
         I --> J[FinalizeTask]
-        J --> K[SendNotification]
     end
 ```
 
@@ -334,7 +367,6 @@ flowchart LR
 | **SaveImage** | 生成画像をCloud Storageに保存 | `StorageTool` |
 | **UpdateRank** | ランク判定・更新 | `RankService` |
 | **FinalizeTask** | タスク完了処理 | `TaskService` |
-| **SendNotification** | Web Push通知送信 | `PushService` |
 
 ---
 
@@ -403,12 +435,25 @@ class LineQualityAnalysis(BaseModel):
     hatching: str             # ハッチング技法
     score: float
 
+class GrowthAnalysis(BaseModel):
+    """成長トラッキング分析（5つ目の採点項目）
+    
+    過去の提出と比較した成長度を評価。
+    初回提出時は全フィールドがデフォルト値となる。
+    """
+    comparison_summary: str = "初回提出のため比較データなし"
+    improved_areas: List[str] = []      # 前回から改善した項目
+    consistent_strengths: List[str] = []  # 一貫して維持している強み
+    ongoing_challenges: List[str] = []    # 継続的に取り組むべき課題
+    score: Optional[float] = None   # 成長スコア (0-100)。初回提出時はnull
+
 class DessinAnalysis(BaseModel):
     """デッサン総合分析"""
     proportion: ProportionAnalysis
     tone: ToneAnalysis
     texture: TextureAnalysis
     line_quality: LineQualityAnalysis
+    growth: GrowthAnalysis = GrowthAnalysis()  # 成長トラッキング
     overall_score: float      # 総合スコア (0-100)
     strengths: List[str]      # 強み
     improvements: List[str]   # 改善点
@@ -512,12 +557,12 @@ _この画像はAI（gemini-2.5-flash-image）によって生成されました_
 
 ## 外部サービス連携
 
-### 1. Firebase Hosting
+### 1. Web Hosting（任意）
 
 | 操作 | 用途 |
 |------|------|
 | ホスティング | Next.jsアプリ (SSR/Static) の配信 |
-| CDN | 静的アセットのグローバル配信 |
+| CDN | 静的アセットの配信 |
 
 ### 2. Cloud Storage / CDN
 
@@ -566,6 +611,8 @@ tasks/
     ├── feedback: map (optional)
     ├── score: number (optional)
     ├── tags: array<string> (optional)
+    ├── rank_at_review: string (optional)  # 審査時ランク
+    ├── rank_changed: boolean (optional)   # 昇格有無
     ├── error_message: string (optional)
     ├── created_at: timestamp
     └── updated_at: timestamp
@@ -584,18 +631,6 @@ user_ranks/
     └── updated_at: timestamp
 ```
 
-### コレクション: `push_subscriptions`
-
-```
-push_subscriptions/
-└── {user_id}/
-    ├── endpoint: string
-    ├── keys: map
-    │   ├── p256dh: string
-    │   └── auth: string
-    └── created_at: timestamp
-```
-
 ### インデックス
 
 | コレクション | フィールド | タイプ |
@@ -609,11 +644,11 @@ push_subscriptions/
 ウェブアプリからFirestoreの`tasks`コレクションをリアルタイム監視し、エージェントがタスクステータスを更新した瞬間にUIに反映します。
 
 ```typescript
-// useTaskRealtime.ts
+// useTasks.ts
 import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-export const useTaskRealtime = (userId: string) => {
+export const useTasks = (userId: string) => {
   const [tasks, setTasks] = useState<ReviewTask[]>([]);
 
   useEffect(() => {
@@ -676,11 +711,19 @@ export const useTaskRealtime = (userId: string) => {
 | 変数名 | 説明 |
 |--------|------|
 | `GCP_PROJECT_ID` | GCPプロジェクトID |
-| `STORAGE_BUCKET` | Cloud Storageバケット名 |
+| `GCS_BUCKET_NAME` | Cloud Storageバケット名 |
 | `CDN_BASE_URL` | Cloud CDNのベースURL |
 | `FIRESTORE_DATABASE` | Firestoreデータベース名 |
-| `VAPID_PUBLIC_KEY` | Web Push用公開鍵 |
-| `VAPID_PRIVATE_KEY_SECRET_ID` | Web Push用秘密鍵のSecret ID |
+| `PROCESS_REVIEW_FUNCTION_URL` | process-review関数URL |
+| `ANNOTATION_FUNCTION_URL` | annotate-image関数URL |
+| `IMAGE_GENERATION_FUNCTION_URL` | generate-image関数URL |
+| `AGENT_ENGINE_ID` | Agent EngineリソースID |
+| `AGENT_ENGINE_LOCATION` | Agent Engineリージョン |
+| `CLOUD_TASKS_LOCATION` | Cloud Tasksリージョン |
+| `CLOUD_TASKS_QUEUE_NAME` | Cloud Tasksキュー名 |
+| `GEMINI_MODEL` | Geminiモデル名 |
+| `AUTH_ENABLED` | Firebase認証有効化 |
+| `CORS_ORIGINS` | CORS許可オリジン |
 
 ---
 
@@ -782,22 +825,22 @@ flowchart TB
     F --> A
 ```
 
-### 拡張2: メモリ機能による成長トラッキング
-
-**概要**: ADKのセッション/メモリ機能を活用し、ユーザーの成長を時系列で追跡
-
-### 拡張3: マルチモーダルエンベディング
+### 拡張2: マルチモーダルエンベディング
 
 **概要**: Vertex AIのマルチモーダルエンベディングを使用して、過去に似たスケッチを検索
 
 ---
 
-## 初期実装 vs 将来拡張
+## 実装状況
 
-| 機能 | 初期実装 | 将来拡張 |
-|------|----------|----------|
-| エージェント構成 | 単一エージェント | マルチエージェント |
-| メモリ | Firestoreのみ | Memory Bank統合 |
-| 類似検索 | なし | マルチモーダルエンベディング |
-| UI | ウェブアプリ | モバイルアプリ |
-| 通知 | Web Push | Email/LINE連携 |
+| 機能 | 状況 | 備考 |
+|------|--------|------|
+| 単一エージェント | ✅ 実装済 | Vertex AI Agent Engineにデプロイ |
+| Memory Bank統合 | ✅ 実装済 | 成長トラッキングに使用 |
+| 成長トラッキング | ✅ 実装済 | 5つ目の採点項目として追加 |
+| Cloud Tasks非同期処理 | ✅ 実装済 | レビュータスクのバックグラウンド処理 |
+| マルチエージェント | 🚧 将来拡張 | Swarmパターンへの拡張 |
+| マルチモーダルエンベディング | 🚧 将来拡張 | 類似スケッチ検索 |
+| モバイルアプリ | 🚧 将来拡張 | iOS/Android対応 |
+| Email/LINE連携 | 🚧 将来拡張 | 通知チャネル拡張 |
+

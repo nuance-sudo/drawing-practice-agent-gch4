@@ -13,17 +13,16 @@
 
 ```
 drawing-practice-agent-gch4/
+├── .agent/                     # エージェントスキル・支援ドキュメント
 ├── .gemini/                    # ステアリングファイル（作業単位のドキュメント）
 ├── .github/                    # GitHub Actions ワークフロー
 ├── packages/                   # モノレポパッケージ
 │   ├── agent/                  # エージェント・API実装（Python/ADK）
-│   ├── web/                    # ウェブアプリ実装（React/Vite）
+│   ├── web/                    # ウェブアプリ実装（Next.js）
 │   ├── functions/              # Cloud Run Functions実装（Python）
-│   └── infra/                  # インフラ定義（Terraform/gcloud）
+│   └── infra/                  # インフラ定義（gcloud/補助スクリプト）
 ├── docs/                       # 永続的ドキュメント
-├── scripts/                    # ルートスクリプト（統合デプロイ等）
 ├── GEMINI.md                   # プロジェクトメモリ
-├── Makefile                    # 開発タスク定義（統合管理）
 ├── README.md                   # プロジェクト概要
 └── .gitignore                  # Git除外設定
 ```
@@ -34,58 +33,9 @@ drawing-practice-agent-gch4/
 
 ルートディレクトリから全パッケージを統合管理できます。
 
-### Makefile コマンド
+### 統合コマンド
 
-```makefile
-# Makefile
-
-# 全体デプロイ
-deploy-all:
-	@echo "Deploying all packages..."
-	$(MAKE) deploy-agent
-	$(MAKE) deploy-web
-
-# エージェントのみデプロイ
-deploy-agent:
-	cd packages/agent && ./scripts/deploy.sh
-
-# ウェブアプリのみデプロイ
-deploy-web:
-	cd packages/web && firebase deploy --only hosting
-
-# ローカル開発（全体起動）
-dev:
-	@echo "Starting all services..."
-	$(MAKE) -j2 dev-agent dev-web
-
-dev-agent:
-	cd packages/agent && uv run uvicorn src.main:app --reload
-
-dev-web:
-	cd packages/web && pnpm dev
-
-# テスト（全体）
-test:
-	$(MAKE) test-agent
-	$(MAKE) test-web
-
-test-agent:
-	cd packages/agent && uv run pytest tests/ -v
-
-test-web:
-	cd packages/web && pnpm test
-
-# リント（全体）
-lint:
-	$(MAKE) lint-agent
-	$(MAKE) lint-web
-
-lint-agent:
-	cd packages/agent && uv run ruff check . && uv run mypy .
-
-lint-web:
-	cd packages/web && pnpm lint
-```
+現時点ではルートの統合Makefileはありません。各パッケージ配下のスクリプトを使用します。
 
 ---
 
@@ -110,9 +60,7 @@ lint-web:
 ```
 .github/
 └── workflows/
-    ├── dessin-coaching.yml    # PRトリガー（オプション）
-    ├── ci.yml                 # CI（Lint/Test）
-    └── deploy.yml             # デプロイ（Cloud Run）
+    └── verify-gcp-auth.yml    # GCP認証確認
 ```
 
 ### `packages/agent/` - エージェント・API実装
@@ -127,142 +75,127 @@ packages/agent/
 ├── .env.example               # 環境変数テンプレート
 ├── README.md                  # エージェント説明
 │
-├── src/                       # ソースコード
+├── dessin_coaching_agent/     # ADKエージェント（Vertex AI Agent Engineデプロイ用）
+│   ├── __init__.py
+│   ├── agent.py              # root_agent定義
+│   ├── tools.py              # analyze_dessin_imageツール
+│   ├── models.py             # DessinAnalysis, GrowthAnalysis等
+│   ├── prompts.py            # コーチング用プロンプト
+│   ├── callbacks.py          # Memory Bank保存コールバック
+│   ├── memory_tools.py       # メモリ検索ツール
+│   └── config.py             # エージェント設定
+│
+├── src/                       # APIサーバーソースコード
 │   ├── __init__.py
 │   ├── main.py               # FastAPIエントリーポイント
-│   ├── agent.py              # ADK Agent定義（root_agent）
 │   ├── config.py             # 設定管理
+│   ├── auth.py               # 認証処理
 │   ├── exceptions.py         # カスタム例外
 │   │
 │   ├── api/                  # REST APIエンドポイント
 │   │   ├── __init__.py
-│   │   ├── reviews.py        # 審査API
-│   │   ├── tasks.py          # タスクAPI
-│   │   └── users.py          # ユーザーAPI
+│   │   └── reviews.py        # 審査API
 │   │
 │   ├── models/               # Pydanticモデル
 │   │   ├── __init__.py
 │   │   ├── task.py           # タスクモデル
 │   │   ├── feedback.py       # フィードバックモデル
-│   │   ├── analysis.py       # 分析結果モデル
 │   │   └── rank.py           # ランクモデル
 │   │
-│   ├── prompts/              # プロンプト定義
-│   │   ├── __init__.py
-│   │   └── coaching.py       # コーチングプロンプト
-│   │
-│   ├── services/             # 外部サービス連携
-│   │   ├── __init__.py
-│   │   ├── gemini_service.py # Vertex AI Gemini連携
-│   │   ├── storage_service.py # Cloud Storage連携
-│   │   ├── task_service.py   # タスク管理（Firestore）
-│   │   ├── rank_service.py   # ランク管理（Firestore）
-│   │   ├── push_service.py   # Web Push通知
-│   │   └── secrets.py        # Secret Manager連携
-│   │
-│   ├── tools/                # ADK Tools
-│   │   ├── __init__.py
-│   │   ├── storage_tool.py   # Cloud Storage操作
-│   │   └── image_tool.py     # 画像処理
-│   │
-│   └── utils/                # ユーティリティ
+│   └── services/             # 外部サービス連携
 │       ├── __init__.py
-│       ├── logging.py        # ログ設定
-│       └── helpers.py        # 汎用ヘルパー
+│       ├── agent_engine_service.py  # Agent Engine呼び出し
+│       ├── cloud_tasks_service.py   # Cloud Tasks連携
+│       ├── gemini_service.py        # Vertex AI Gemini連携
+│       ├── task_service.py          # タスク管理（Firestore）
+│       ├── rank_service.py          # ランク管理（Firestore）
+│       ├── feedback_service.py      # フィードバック生成
+│       ├── annotation_service.py    # アノテーション生成
+│       ├── image_generation_service.py  # 画像生成
+│       └── memory_service.py        # Memory Bank連携
 │
 ├── tests/                     # テストコード
 │   ├── __init__.py
 │   ├── conftest.py           # pytest fixtures
-│   ├── test_agent.py         # エージェントテスト
-│   └── test_services/        # サービステスト
-│       └── ...
+│   └── ...
 │
 └── scripts/                   # スクリプト
     ├── deploy.sh             # デプロイスクリプト
-    └── local_dev.sh          # ローカル開発用
+    └── deploy_agent.sh       # Agent Engineデプロイ
 ```
 
 ### `packages/web/` - ウェブアプリ実装
 
-React + Vite + Tailwind CSSのウェブアプリ。Firebase Hostingにデプロイ。
+Next.js + App Router + Tailwind CSSのウェブアプリ。
 
 ```
 packages/web/
 ├── package.json               # Node.js依存関係
-├── pnpm-lock.yaml            # 依存関係ロック
-├── vite.config.ts            # Vite設定
-├── tailwind.config.js        # Tailwind CSS設定
+├── package-lock.json         # 依存関係ロック
+├── next.config.ts            # Next.js設定
+├── tailwind.config.ts        # Tailwind CSS設定
+├── eslint.config.mjs         # ESLint設定
+├── postcss.config.mjs        # PostCSS設定
 ├── tsconfig.json             # TypeScript設定
-├── index.html                # HTMLエントリーポイント
 ├── .env.example              # 環境変数テンプレート
 ├── README.md                 # ウェブアプリ説明
 │
-├── public/                   # 静的ファイル
-│   ├── favicon.ico
-│   ├── manifest.json         # PWAマニフェスト
-│   └── sw.js                 # Service Worker
-│
-├── src/                      # ソースコード
-│   ├── main.tsx              # エントリーポイント
-│   ├── App.tsx               # ルートコンポーネント
-│   ├── index.css             # グローバルスタイル
-│   ├── vite-env.d.ts         # Vite型定義
+├── src/
+│   ├── app/                  # App Router
+│   │   ├── globals.css       # グローバルスタイル
+│   │   ├── layout.tsx        # ルートレイアウト
+│   │   ├── page.tsx          # ホーム（ログイン）
+│   │   └── (authenticated)/  # 認証必須ページ
+│   │       ├── layout.tsx
+│   │       ├── review/
+│   │       │   └── page.tsx
 │   │
 │   ├── components/           # UIコンポーネント
+│   │   ├── auth-provider.tsx
+│   │   ├── login-button.tsx
 │   │   ├── common/           # 共通コンポーネント
-│   │   │   ├── Button.tsx
-│   │   │   ├── Card.tsx
-│   │   │   └── Loading.tsx
-│   │   ├── ImageUpload.tsx   # 画像アップロード
-│   │   ├── FeedbackDisplay.tsx # フィードバック表示
-│   │   ├── TaskList.tsx      # タスク一覧
-│   │   └── RankBadge.tsx     # ランクバッジ
-│   │
-│   ├── pages/                # ページコンポーネント
-│   │   ├── Home.tsx          # ホーム（アップロード）
-│   │   ├── Review.tsx        # 審査結果表示
-│   │   └── History.tsx       # 審査履歴
+│   │   └── features/         # 機能別コンポーネント
 │   │
 │   ├── stores/               # Zustandストア
-│   │   ├── index.ts
-│   │   ├── authStore.ts      # 認証状態
-│   │   └── taskStore.ts      # タスク状態
+│   │   └── ...
 │   │
 │   ├── hooks/                # カスタムフック
-│   │   ├── useReview.ts      # 審査API
-│   │   ├── useTasks.ts       # タスク管理
-│   │   └── usePushNotification.ts # プッシュ通知
+│   │   └── ...
 │   │
-│   ├── api/                  # API呼び出し
-│   │   ├── client.ts         # HTTPクライアント
-│   │   └── reviewApi.ts      # 審査API
+│   ├── lib/                  # ユーティリティ
+│   │   ├── firebase.ts       # Firebase初期化
+│   │   └── api.ts            # API呼び出し
 │   │
-│   ├── types/                # 型定義
-│   │   ├── task.ts
-│   │   ├── feedback.ts
-│   │   └── rank.ts
-│   │
-│   └── utils/                # ユーティリティ
-│       ├── pushNotification.ts
-│       └── imageUtils.ts
+│   └── types/                # 型定義
+│       └── ...
+│
+├── public/                   # 静的ファイル
+│   ├── favicon.ico
+│   └── sw.js                 # Service Worker
 │
 └── tests/                    # テストコード
     └── ...
 
 ### `packages/functions/` - Cloud Run Functions実装
 
-画像生成とタスク完了処理を行う軽量なHTTP関数。
+画像生成、アノテーション生成、タスク完了処理、レビュー処理を行う軽量なHTTP関数。
 
 ```
 packages/functions/
 ├── deploy_functions.sh         # デプロイスクリプト
+├── .env.example                # 環境変数テンプレート
+├── annotate_image/             # アノテーション画像生成関数
+│   ├── main.py
+│   └── requirements.txt
 ├── generate_image/             # お手本画像生成関数
 │   ├── main.py
 │   └── requirements.txt
-└── complete_task/               # タスク完了処理関数
+├── complete_task/              # タスク完了処理関数
+│   ├── main.py
+│   └── requirements.txt
+└── process_review/             # レビュー処理関数（Cloud Tasksから呼び出し）
     ├── main.py
     └── requirements.txt
-```
 ```
 
 ### `packages/infra/` - インフラ定義
@@ -298,18 +231,6 @@ docs/
 └── images/                    # 画像リソース（必要に応じて）
     └── ...
 ```
-
-### `scripts/` - ルートスクリプト
-
-プロジェクト全体に関わるスクリプト。
-
-```
-scripts/
-├── setup.sh                   # 初期セットアップ
-└── deploy-all.sh              # 全体デプロイ
-```
-
----
 
 ## ファイル命名規則
 
@@ -355,8 +276,8 @@ scripts/
 | ファイル | 用途 |
 |----------|------|
 | `packages/agent/src/main.py` | FastAPI アプリケーション（Cloud Run用） |
-| `packages/agent/src/agent.py` | ADK Agent定義（`root_agent`） |
-| `packages/web/src/main.tsx` | React アプリケーション |
+| `packages/agent/dessin_coaching_agent/agent.py` | ADK Agent定義（`root_agent`） |
+| `packages/web/src/app/layout.tsx` | Next.js ルートレイアウト |
 
 ### 設定ファイル
 
@@ -365,9 +286,8 @@ scripts/
 | `packages/agent/pyproject.toml` | Python依存関係・プロジェクト設定 |
 | `packages/agent/Dockerfile` | コンテナイメージ定義 |
 | `packages/web/package.json` | Node.js依存関係 |
-| `packages/web/vite.config.ts` | Vite設定 |
-| `packages/web/tailwind.config.js` | Tailwind CSS設定 |
-| `Makefile` | 統合タスク管理 |
+| `packages/web/next.config.ts` | Next.js設定 |
+| `packages/web/tailwind.config.ts` | Tailwind CSS設定 |
 
 ---
 
@@ -439,12 +359,12 @@ ADK (Agents Development Kit) を使用する場合の必須構成：
 ### root_agent の定義
 
 ```python
-# packages/agent/src/agent.py
-from google.adk import Agent
+# packages/agent/dessin_coaching_agent/agent.py
+from google.adk.agents import Agent
 
 root_agent = Agent(
-    name="dessin-coaching-agent",
-    model="gemini-3-flash-preview",
+    name="dessin_coaching_agent",
+    model=gemini_model,
     description="鉛筆デッサンコーチングエージェント",
     tools=[...],
 )
@@ -460,6 +380,6 @@ root_agent = Agent(
 | `docs/` | 設計ドキュメントが揃っている |
 | `.github/workflows/` | CI/CDワークフローが動作する |
 | `packages/agent/` | エージェントコードがCloud Runにデプロイ可能 |
-| `packages/web/` | ウェブアプリがFirebase Hostingにデプロイ可能 |
+| `packages/web/` | ウェブアプリが任意のホスティングにデプロイ可能 |
 | `Makefile` | 統合管理コマンドが動作する |
 | ライセンス | ライセンスファイルがある（必要に応じて） |
