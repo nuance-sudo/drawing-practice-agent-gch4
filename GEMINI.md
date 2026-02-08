@@ -28,12 +28,59 @@ packages/
 | **packages/web** | [CODING_RULES.md](packages/web/CODING_RULES.md) | React/TypeScript、Zustand、SWR、Tailwind CSS |
 | **packages/infra** | [CODING_RULES.md](packages/infra/CODING_RULES.md) | Terraform、gcloudスクリプト |
 
-### ドキュメントの分類
+---
 
-#### 1. 永続的ドキュメント（`docs/`）
+## 開発手法の選択
+
+### aidlcスキル利用時（推奨）
+
+**大規模開発・新機能開発・リファクタリング**には `/aidlc [開発内容]` でaidlcワークフローを起動してください。
+
+aidlcスキルを利用する場合、**aidlcのワークフローに完全に従う**こと：
+
+1. **INCEPTION PHASE**: 要件分析、ユーザーストーリー、ワークフロー計画、アプリケーション設計
+2. **CONSTRUCTION PHASE**: 機能設計、NFR要件/設計、インフラ設計、コード生成、ビルド&テスト
+3. **OPERATIONS PHASE**: デプロイメント（プレースホルダー）
+
+> **重要**: aidlc利用時は、本ドキュメントの「ドキュメント管理」セクションではなく、aidlcスキルが定義するワークフローとドキュメント構造（`aidlc-docs/`）に従うこと。
+
+### 通常の開発（小規模変更・バグ修正）
+
+シンプルなバグ修正や小規模変更は、aidlcを使わず直接対応可能：
+1. 各パッケージのCODING_RULES.mdに従う
+2. 必要に応じて`docs/`の永続的ドキュメントを更新
+
+---
+
+## ドキュメント管理
+
+### ディレクトリ構成
+
+| ディレクトリ | 用途 | 管理方針 |
+|-------------|------|---------|
+| `docs/` | 永続的ドキュメント | プロジェクトの基本設計・方針を定義。`/work-complete`時に必要に応じて更新 |
+| `aidlc-docs/` | aidlc作業ドキュメント | aidlcワークフロー中に自動生成。作業完了後は`/work-complete`で整理 |
+| `.gemini/steering/` | AIエージェント向けコンテキスト | `/work-complete`で過去の作業成果を蓄積 |
+
+### ドキュメント更新フロー
+
+```
+aidlcワークフロー実行
+        ↓
+  aidlc-docs/ に作業ドキュメント生成
+        ↓
+  /work-complete 実行
+        ↓
+  ┌─────────────────────────────────────┐
+  │ • aidlc-docs/ → .gemini/steering/ へ移動 │
+  │ • docs/ の永続的ドキュメント更新（必要時）  │
+  │ • walkthrough.md 作成              │
+  └─────────────────────────────────────┘
+```
+
+### 永続的ドキュメント（`docs/`）
 
 アプリケーション全体の「**何を作るか**」「**どう作るか**」を定義する恒久的なドキュメント。
-アプリケーションの基本設計や方針が変わらない限り更新されません。
 
 - **product-requirements.md** - プロダクト要求定義書
   - プロダクトビジョンと目的
@@ -157,16 +204,9 @@ graph TD
 
 ## Issue Management
 
-- **GitHub Project Linking**: Issues created for this repository should be linked to the following project:
-  - https://github.com/users/nuance-sudo/projects/3
+- **GitHub Project Linking**: https://github.com/users/nuance-sudo/projects/3
 
-## 注意事項
-
-- ドキュメントの作成・更新は段階的に行い、各段階で承認を得る
-- 永続的ドキュメントと作業単位のドキュメントを混同しない
-- 図表は必要最小限に留め、メンテナンスコストを抑える
-
-> 詳細なルールはAgent Skillsを参照してください。
+---
 
 ## Agent Skills
 

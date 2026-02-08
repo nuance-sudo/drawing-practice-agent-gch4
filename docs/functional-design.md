@@ -44,7 +44,7 @@ flowchart TB
 
     subgraph AI["Vertex AI"]
         K[gemini-3-flash-preview<br/>Agentic Vision]
-        L[gemini-2.5-flash-image]
+        L[gemini-3-pro-image-preview]
     end
 
     A -->|審査依頼| B
@@ -80,7 +80,7 @@ sequenceDiagram
     participant AnnotateFunc as Cloud Run Functions<br/>(annotate-image)
     participant GenFunc as Cloud Run Functions<br/>(generate-image)
     participant CompleteFunc as Cloud Run Functions<br/>(complete-task)
-    participant ImageGen as Vertex AI<br/>(gemini-2.5-flash-image)
+    participant ImageGen as Vertex AI<br/>(gemini-3-pro-image-preview)
     participant GCS as Cloud Storage
 
     User->>Web: 画像アップロード
@@ -363,7 +363,7 @@ flowchart LR
 | **GenerateFeedback** | フィードバック生成 | `FeedbackService` |
 | **UpdateTask** | タスクステータス更新 | `TaskService` |
 | **GenerateAnnotation** | Agentic Visionで改善ポイントにバウンディングボックス描画 | `AnnotationService` |
-| **GenerateExampleImage** | 元画像+アノテーション画像を参照し、gemini-2.5-flash-imageでお手本画像生成 | `ImageGenerationService` |
+| **GenerateExampleImage** | 元画像+アノテーション画像を参照し、gemini-3-pro-image-previewでお手本画像生成 | `ImageGenerationService` |
 | **SaveImage** | 生成画像をCloud Storageに保存 | `StorageTool` |
 | **UpdateRank** | ランク判定・更新 | `RankService` |
 | **FinalizeTask** | タスク完了処理 | `TaskService` |
@@ -550,7 +550,7 @@ class UserRank(BaseModel):
 
 ![お手本画像](/path/to/generated-image.png)
 
-_この画像はAI（gemini-2.5-flash-image）によって生成されました_
+_この画像はAI（gemini-3-pro-image-preview）によって生成されました_
 ```
 
 ---
@@ -579,7 +579,7 @@ _この画像はAI（gemini-2.5-flash-image）によって生成されました_
 |------|--------|------|
 | デッサン分析 | `gemini-3-flash-preview` | マルチモーダル分析 |
 | アノテーション生成 | `gemini-3-flash-preview` + Agentic Vision | 改善ポイントへのバウンディングボックス描画（code_execution） |
-| 画像生成 | `gemini-2.5-flash-image` | 元画像+アノテーション画像を参照したお手本画像生成 |
+| 画像生成 | `gemini-3-pro-image-preview` | 元画像+アノテーション画像を参照したお手本画像生成 |
 
 ### 5. Google Cloud Services
 

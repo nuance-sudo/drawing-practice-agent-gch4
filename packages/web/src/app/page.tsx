@@ -56,7 +56,7 @@ export default function Home() {
         {/* Header */}
         <div className="flex justify-between items-center mb-8 max-w-4xl mx-auto xl:max-w-none">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Drawing Practice Agent</h1>
+            <h1 className="text-3xl font-bold text-slate-900">Art coachIng</h1>
             <p className="text-slate-600 mt-1">デッサンをアップロードして、AIコーチングを受けましょう</p>
           </div>
           {user ? <UserProfileMenu /> : <LoginButton />}

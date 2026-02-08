@@ -35,7 +35,7 @@ PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 OUTPUT_BUCKET_NAME = os.environ.get("OUTPUT_BUCKET_NAME")
 COMPLETE_TASK_FUNCTION_URL = os.environ.get("COMPLETE_TASK_FUNCTION_URL")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-pro-image-preview")
-# gemini-2.5-flash-imageはグローバルエンドポイントで利用可能
+# gemini-3-pro-image-previewはグローバルエンドポイントで利用可能
 LOCATION = "global"
 
 class ImageGenerationError(Exception):
