@@ -69,6 +69,19 @@ def _sanitize_for_storage(text: str, max_length: int = 10000) -> str:
     return sanitized
 
 
+def _extract_overall_score_from_fact(fact: str) -> float | None:
+    """factテキストから総合スコアを抽出（"総合スコア: 76.25/100" など）"""
+    if not fact:
+        return None
+    match = re.search(r"総合スコア:\s*([0-9]+(?:\.[0-9]+)?)\s*/\s*100", fact)
+    if not match:
+        return None
+    try:
+        return float(match.group(1))
+    except ValueError:
+        return None
+
+
 def analyze_dessin_image(
     image_url: str,
     rank_label: str = "初学者",
@@ -123,6 +136,12 @@ def analyze_dessin_image(
         session_id_length=len(session_id),
         has_tool_context=tool_context is not None,
     )
+    logger.info(
+        "analyze_dessin_image_start: rank=%s, user=%s, session=%s",
+        rank_label,
+        user_id,
+        session_id,
+    )
 
     try:
         # URL検証
@@ -153,12 +172,18 @@ def analyze_dessin_image(
         effective_user_id = user_id
         if not effective_user_id and tool_context and hasattr(tool_context, "user_id"):
             effective_user_id = tool_context.user_id or ""
+        logger.info(
+            "effective_user_id_resolved: user=%s, from_tool_context=%s",
+            effective_user_id,
+            bool(tool_context and getattr(tool_context, "user_id", None)),
+        )
 
         # プロンプト生成（成長情報はLLMに生成させず、後で補正する）
         system_prompt = get_dessin_analysis_system_prompt(rank_label)
         user_prompt = DESSIN_ANALYSIS_USER_PROMPT
 
         # 分析リクエスト
+        logger.info("gemini_request_start: model=%s", settings.gemini_model)
         response = client.models.generate_content(
             model=settings.gemini_model,
             contents=[
@@ -178,18 +203,34 @@ def analyze_dessin_image(
                 response_schema=DessinAnalysis,
             ),
         )
+        logger.info(
+            "gemini_request_done: has_text=%s, text_len=%d",
+            bool(getattr(response, "text", None)),
+            len(response.text) if getattr(response, "text", None) else 0,
+        )
 
         # レスポンスをパース
         analysis = DessinAnalysis.model_validate_json(response.text)
 
         # スコア範囲の検証
         analysis = _validate_and_sanitize_analysis(analysis)
+        logger.info(
+            "analysis_parsed: overall=%.1f, tags=%s",
+            analysis.overall_score,
+            analysis.tags,
+        )
 
         # === 成長トラッキング: 分析後にメモリ取得して補正 ===
         if effective_user_id:
             # Step 1: モチーフでフィルタして検索
             motif = analysis.tags[0] if analysis.tags else None
             past_memories: list[MemoryEntry] = []
+
+            if not motif:
+                logger.info(
+                    "モチーフ未確定のため全履歴検索にフォールバック: user=%s",
+                    effective_user_id,
+                )
 
             if motif:
                 past_memories = search_memory_by_motif(motif, effective_user_id)
@@ -210,7 +251,16 @@ def analyze_dessin_image(
                 )
 
             # Step 3: 成長スコア補正
+            logger.info(
+                "growth_adjust_start: past_memories=%d",
+                len(past_memories),
+            )
             analysis = _calculate_growth_from_memories(analysis, past_memories)
+            logger.info(
+                "growth_adjusted: score=%s, summary=%s",
+                analysis.growth.score,
+                analysis.growth.comparison_summary,
+            )
 
         # 要約を作成
         summary = _create_summary(analysis)
@@ -221,6 +271,12 @@ def analyze_dessin_image(
             if saved:
                 logger.info(
                     "分析結果をMemory Bankに保存: user=%s, session=%s",
+                    effective_user_id,
+                    session_id,
+                )
+            else:
+                logger.warning(
+                    "分析結果のMemory Bank保存に失敗: user=%s, session=%s",
                     effective_user_id,
                     session_id,
                 )
@@ -237,6 +293,7 @@ def analyze_dessin_image(
             "error_message": "分析結果の検証に失敗しました",
         }
     except Exception as e:
+        logger.exception("analyze_dessin_image_failed: %s", e)
         return {
             "status": "error",
             "error_message": f"デッサン分析に失敗しました: {e!s}",
@@ -302,12 +359,29 @@ def _calculate_growth_from_memories(
 
     # 過去スコアを取得
     past_scores: list[float] = []
+    metadata_keys: set[str] = set()
     for mem in past_memories:
         metadata = mem.get("metadata", {})
         if isinstance(metadata, dict):
+            metadata_keys.update(metadata.keys())
             score = metadata.get("overall_score")
             if isinstance(score, (int, float)):
                 past_scores.append(float(score))
+
+    if not past_scores:
+        for mem in past_memories:
+            fact = mem.get("fact")
+            if isinstance(fact, str):
+                score = _extract_overall_score_from_fact(fact)
+                if isinstance(score, (int, float)):
+                    past_scores.append(float(score))
+
+    logger.info(
+        "成長スコア補正: past_memories=%d, past_scores=%d, metadata_keys=%s",
+        len(past_memories),
+        len(past_scores),
+        sorted(metadata_keys),
+    )
 
     if not past_scores:
         # メタデータにスコアがない場合も初回扱い

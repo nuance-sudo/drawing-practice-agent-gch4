@@ -52,6 +52,16 @@ def save_analysis_to_memory(
 
         # factを構築
         fact = _build_memory_fact(analysis)
+        logger.info(
+            "メモリ保存payload: motif=%s, overall=%.1f, growth=%s",
+            analysis.tags[0] if analysis.tags else "不明",
+            analysis.overall_score,
+            analysis.growth.score,
+        )
+        logger.info(
+            "メモリ保存metadata_keys: %s",
+            sorted(metadata.keys()),
+        )
 
         # Agent Engine名を構築
         engine_name = (

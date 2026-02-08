@@ -4,6 +4,7 @@ ADKエージェントが使用するModチーフフィルタ付きメモリ検�
 Vertex AI Client APIを使用してメタデータフィルタリングを実装。
 """
 
+import datetime
 import logging
 
 from vertexai import Client
@@ -39,6 +40,11 @@ def search_memory_by_motif(
         >>> for m in memories:
         ...     print(m["metadata"]["overall_score"])
     """
+    logger.info(
+        "search_memory_by_motif_start: user=%s, motif=%s",
+        user_id,
+        motif,
+    )
     if not settings.agent_engine_id:
         logger.warning("AGENT_ENGINE_ID未設定のためメモリ検索をスキップ")
         return []
@@ -67,12 +73,19 @@ def search_memory_by_motif(
         )
 
         memories: list[MemoryEntry] = []
-        for retrieved in results:
+        for idx, retrieved in enumerate(results, start=1):
             memory = retrieved.memory
-            memories.append({
+            entry = {
                 "fact": memory.fact,
                 "metadata": _extract_metadata(memory.metadata) if memory.metadata else {},
-            })
+            }
+            memories.append(entry)
+            if idx <= 3:
+                logger.info(
+                    "メモリ取得サンプル(motif): idx=%d, metadata_keys=%s",
+                    idx,
+                    sorted(entry["metadata"].keys()),
+                )
 
         logger.info(
             "モチーフ別メモリ検索完了: user=%s, motif=%s, count=%d",
@@ -102,6 +115,11 @@ def search_recent_memories(
     Returns:
         直近のメモリリスト（新しい順）
     """
+    logger.info(
+        "search_recent_memories_start: user=%s, limit=%d",
+        user_id,
+        limit,
+    )
     if not settings.agent_engine_id:
         logger.warning("AGENT_ENGINE_ID未設定のためメモリ検索をスキップ")
         return []
@@ -122,14 +140,21 @@ def search_recent_memories(
         )
 
         memories: list[MemoryEntry] = []
-        for retrieved in results:
+        for idx, retrieved in enumerate(results, start=1):
             if len(memories) >= limit:
                 break
             memory = retrieved.memory
-            memories.append({
+            entry = {
                 "fact": memory.fact,
                 "metadata": _extract_metadata(memory.metadata) if memory.metadata else {},
-            })
+            }
+            memories.append(entry)
+            if idx <= 3:
+                logger.info(
+                    "メモリ取得サンプル(recent): idx=%d, metadata_keys=%s",
+                    idx,
+                    sorted(entry["metadata"].keys()),
+                )
 
         logger.info(
             "全履歴メモリ取得完了: user=%s, count=%d",
@@ -149,7 +174,16 @@ def _extract_metadata(
     """メタデータを辞書形式に変換"""
     extracted: dict[str, str | float | bool] = {}
     for key, value in metadata.items():
-        if hasattr(value, "string_value"):
+        if isinstance(value, bool):
+            extracted[key] = value
+        elif isinstance(value, (int, float)):
+            extracted[key] = float(value)
+        elif isinstance(value, str):
+            if value:
+                extracted[key] = value
+        elif isinstance(value, datetime.datetime):
+            extracted[key] = value.isoformat()
+        elif hasattr(value, "string_value"):
             str_val = getattr(value, "string_value", None)
             if str_val:
                 extracted[key] = str_val
