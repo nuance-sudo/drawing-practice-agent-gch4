@@ -96,16 +96,59 @@ def update_task_status(
     logger.info("task_status_updated", task_id=task_id, status=status)
 
 
+def _rank_value_to_label(rank_value: int) -> str:
+    """ランクのIntEnum値からラベル文字列に変換
+
+    Args:
+        rank_value: Rank IntEnumの値（1-15）
+
+    Returns:
+        ランクのラベル（例: "7級", "初段", "師範"）
+    """
+    if 1 <= rank_value <= 10:
+        # 1=10級, 2=9級, ..., 10=1級
+        return f"{11 - rank_value}級"
+    elif rank_value == 11:
+        return "初段"
+    elif rank_value == 12:
+        return "2段"
+    elif rank_value == 13:
+        return "3段"
+    elif rank_value == 14:
+        return "師範代"
+    elif rank_value == 15:
+        return "師範"
+    else:
+        return "10級"  # フォールバック
+
+
 def get_user_rank(user_id: str) -> str:
-    """ユーザーの現在のランクを取得"""
+    """ユーザーの現在のランクを取得
+
+    Args:
+        user_id: ユーザーID
+
+    Returns:
+        ランクのラベル（例: "7級", "初段"）
+    """
     db = get_firestore_client()
-    rank_ref = db.collection("user_ranks").document(user_id)
-    rank_doc = rank_ref.get()
-    
-    if rank_doc.exists:
-        rank_data = rank_doc.to_dict()
-        if rank_data:
-            return rank_data.get("current_rank", "10級")
+    user_ref = db.collection("users").document(user_id)
+    user_doc = user_ref.get()
+
+    if user_doc.exists:
+        user_data = user_doc.to_dict()
+        if user_data and "rank" in user_data:
+            rank_value = user_data["rank"]
+            if isinstance(rank_value, int):
+                label = _rank_value_to_label(rank_value)
+                logger.info(
+                    "user_rank_fetched",
+                    user_id=user_id,
+                    rank_value=rank_value,
+                    rank_label=label,
+                )
+                return label
+    logger.warning("user_rank_not_found", user_id=user_id)
     return "10級"
 
 
@@ -275,31 +318,64 @@ async def call_cloud_function(url: str, payload: dict[str, object]) -> dict[str,
 
 
 def update_user_rank(user_id: str, score: int, task_id: str) -> tuple[str, bool]:
-    """ユーザーランクを更新"""
+    """ユーザーランクを更新
+
+    Args:
+        user_id: ユーザーID
+        score: 今回のスコア
+        task_id: タスクID
+
+    Returns:
+        (新しいランクラベル, ランクが変わったか)
+    """
     db = get_firestore_client()
-    rank_ref = db.collection("user_ranks").document(user_id)
-    rank_doc = rank_ref.get()
-    
-    current_rank = "10級"
+    user_ref = db.collection("users").document(user_id)
+    user_doc = user_ref.get()
+
+    current_rank_value = 1  # デフォルト: 10級
+    high_scores: list[float] = []
+    total_submissions = 0
     rank_changed = False
-    
-    if rank_doc.exists:
-        rank_data = rank_doc.to_dict()
-        if rank_data:
-            current_rank = rank_data.get("current_rank", "10級")
-    
-    # スコアに基づくランク判定のシンプルな実装
-    # 実際のロジックはrank_serviceから移植が必要
-    new_rank = current_rank
-    
-    rank_ref.set({
-        "user_id": user_id,
-        "current_rank": new_rank,
-        "current_score": score,
+
+    if user_doc.exists:
+        user_data = user_doc.to_dict()
+        if user_data:
+            current_rank_value = int(user_data.get("rank", 1))
+            high_scores = list(user_data.get("high_scores", []))
+            total_submissions = int(user_data.get("total_submissions", 0))
+
+    # 提出回数を更新
+    total_submissions += 1
+
+    # 80点以上なら1ランク昇格（最大15）
+    new_rank_value = current_rank_value
+    if score >= 80:
+        high_scores.append(float(score))
+        if current_rank_value < 15:
+            new_rank_value = current_rank_value + 1
+            rank_changed = True
+
+    # Firestoreに保存
+    user_ref.set({
+        "rank": new_rank_value,
+        "latest_score": score,
+        "high_scores": high_scores,
+        "total_submissions": total_submissions,
         "updated_at": firestore.SERVER_TIMESTAMP,
     }, merge=True)
-    
-    return new_rank, rank_changed
+
+    new_rank_label = _rank_value_to_label(new_rank_value)
+    logger.info(
+        "user_rank_updated",
+        user_id=user_id,
+        old_rank_value=current_rank_value,
+        new_rank_value=new_rank_value,
+        new_rank_label=new_rank_label,
+        rank_changed=rank_changed,
+        score=score,
+    )
+
+    return new_rank_label, rank_changed
 
 
 def generate_feedback_markdown(analysis: dict[str, object], rank: str) -> tuple[str, str]:
