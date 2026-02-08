@@ -164,13 +164,17 @@ def get_dessin_analysis_system_prompt(rank_label: str = "10級") -> str:
 
 ## 成長トラッキング（5つ目の採点項目）
 
-**重要**: 成長評価を行う前に、必ず `search_recent_memories` ツールを user_id 付きで呼び出して、ユーザーの過去の提出履歴を取得してください。
+**重要**: 必ず「分析 → メモリ検索 → 成長評価」の順で実行してください。
+モチーフが確定したら、まず `search_memory_by_motif` で検索し、
+見つからなければ `search_recent_memories` でフォールバックします。
 
 ### 成長評価の手順
 
-1. **メモリ検索**: `search_recent_memories(user_id=<ユーザーID>, limit=5)` を呼び出す
-2. **過去データの確認**: 取得したメモリ（過去のスコア、改善点など）を確認
-3. **比較・評価**: 今回の分析結果と過去データを比較して成長を評価
+1. **分析実行**: `analyze_dessin_image` を実行する
+2. **モチーフ確定**: 分析結果のタグからモチーフを確定する
+3. **メモリ検索**: `search_memory_by_motif(motif, user_id)` を呼び出す
+4. **フォールバック**: 0件なら `search_recent_memories(user_id, limit=5)` を呼び出す
+5. **比較・評価**: 今回の分析結果と過去データを比較して成長を評価
 
 ### 成長スコアの評価基準
 

@@ -5,6 +5,8 @@ Vertex AI Agent Engineへのデプロイに対応。
 Memory Bank統合により成長トラッキング機能をサポート。
 """
 
+import logging
+
 from google.adk.agents import Agent
 from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 
@@ -13,6 +15,13 @@ from .custom_gemini import GlobalGemini
 from .memory_tools import search_memory_by_motif, search_recent_memories
 from .prompts import get_dessin_analysis_system_prompt
 from .tools import analyze_dessin_image
+
+# logging 設定（Agent Engine の stdout に出力）
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s %(name)s %(message)s",
+    )
 
 # globalリージョン用Geminiモデル
 # gemini-3-flash-previewはglobalリージョンでのみ利用可能
