@@ -1,4 +1,6 @@
-# 鉛筆デッサンコーチングエージェント
+# Art coachIng
+
+> 鉛筆デッサンコーチングエージェント
 
 **第4回 Agentic AI Hackathon with Google Cloud** 参加プロジェクト
 
@@ -11,9 +13,6 @@ Google Cloud の最新AI技術（Gemini, ADK, Vertex AI）を駆使した、美�
 **ウェブアプリから**デッサン画像をアップロードすると、AIエージェントが**プロの美術講師のような視点**で分析し、具体的な改善点をフィードバック。さらに「お手本画像（修正後のイメージ）」を生成して視覚的な学習をサポートします。
 
 ### ターゲットユーザー
-- 美術初心者〜中級者
-- 美大受験生
-- イラストレーター志望者
 - 趣味で絵を描くすべての人
 
 ## 🚀 主な機能
@@ -97,7 +96,7 @@ packages/
 |---------|------|
 | **Frontend** | Next.js 16, React 19, Tailwind CSS 4, Zustand 5, SWR |
 | **Backend** | Python 3.12+, FastAPI, Google ADK |
-| **AI Models** | gemini-3-flash-preview, gemini-2.5-flash-image |
+| **AI Models** | gemini-3-flash-preview, gemini-3-pro-image-preview |
 | **Infrastructure** | Cloud Run, Cloud Run Functions, Cloud Tasks, Cloud Storage, Cloud CDN, Firestore, Agent Engine, Memory Bank |
 | **Hosting** | Firebase Hosting (Web), Cloud Run (API/Agent) |
 
@@ -159,6 +158,12 @@ cat packages/infra/DEPLOY_GUIDE.md
 - [packages/agent/CODING_RULES.md](packages/agent/CODING_RULES.md) - Python/ADK
 - [packages/web/CODING_RULES.md](packages/web/CODING_RULES.md) - React/TypeScript
 - [packages/infra/CODING_RULES.md](packages/infra/CODING_RULES.md) - Terraform
+
+---
+
+## 💡 名前の由来
+
+**Art coachIng** ― 鉛筆デッサンを添削し、上達をサポートする「Art Coaching（アートコーチング）」であると同時に、アルファベット1番目の「**A**」と9番目の「**I**」を大文字にして「**AI**」を表現したダブルミーニング。
 
 ---
 

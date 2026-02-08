@@ -11,3 +11,4 @@ __pycache__/
 
 # Cloud Run環境変数ファイル
 env.yaml
+trace

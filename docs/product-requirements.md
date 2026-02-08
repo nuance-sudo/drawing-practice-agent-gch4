@@ -58,7 +58,7 @@
 
 | # | 機能名 | 説明 | 優先度 |
 |---|--------|------|--------|
-| 9 | お手本画像生成（非同期） | Vertex AI（gemini-2.5-flash-image）でお手本画像生成 | P1 |
+| 9 | お手本画像生成（非同期） | Vertex AI（gemini-3-pro-image-preview）でお手本画像生成 | P1 |
 | 10 | ランク制度 | 上達に応じたランク付け（10級〜1級〜初段〜師範） | P1 |
 | 11 | 対話的フィードバック | ユーザーからの追加質問に応答 | P2 |
 | 12 | 進捗トラッキング | 過去の提出作品との比較・成長分析 | P3 |
@@ -205,7 +205,7 @@
   - 構図・仕上げ
 
 ### FR-006: お手本画像生成
-- Vertex AI経由でgemini-2.5-flash-imageを使用
+- Vertex AI経由でgemini-3-pro-image-previewを使用
 - 鉛筆デッサン風のスタイルを維持
 - 改善点を反映した参考画像を生成
 - 生成画像にはAI生成であることを明記
@@ -259,7 +259,7 @@
 ### 必須：AI技術
 - **Vertex AI**: AIモデルのデプロイ・管理（Gemini API経由を含む）
 - **gemini-3-flash-preview（Vertex AI経由）**: マルチモーダル画像分析・フィードバック生成
-- **gemini-2.5-flash-image（Vertex AI経由）**: お手本画像生成
+- **gemini-3-pro-image-preview（Vertex AI経由）**: お手本画像生成
 - **ADK (Agents Development Kit)**: エージェント構築フレームワーク
 
 ### 任意：その他の技術

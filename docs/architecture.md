@@ -45,7 +45,7 @@
 |----------|--------|------|
 | Vertex AI | `gemini-3-flash-preview` | マルチモーダル画像分析（Agent API） |
 | Vertex AI | `gemini-3-flash-preview` + Agentic Vision | 改善ポイントへのバウンディングボックス描画（code_execution） |
-| Vertex AI | `gemini-2.5-flash-image` | お手本画像生成（Cloud Functions） |
+| Vertex AI | `gemini-3-pro-image-preview` | お手本画像生成（Cloud Functions） |
 
 ### インフラストラクチャ
 
@@ -492,7 +492,7 @@ gcloud run deploy dessin-coaching-agent \
 
 ### AI技術（必須）
 - [x] **Vertex AI** - AIモデル管理
-- [x] **Gemini API（Vertex AI経由）** - gemini-3-flash-preview, gemini-2.5-flash-image
+- [x] **Gemini API（Vertex AI経由）** - gemini-3-flash-preview, gemini-3-pro-image-preview
 - [x] **ADK (Agents Development Kit)** - エージェント構築フレームワーク
 
 ### その他の技術（任意）

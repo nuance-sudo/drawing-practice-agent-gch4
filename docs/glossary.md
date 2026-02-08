@@ -182,7 +182,7 @@
 | ドキュメント | URL |
 |-------------|-----|
 | Gemini 3（gemini-3-flash-preview） | https://ai.google.dev/gemini-api/docs/gemini-3?hl=ja |
-| 画像生成（gemini-2.5-flash-image） | https://ai.google.dev/gemini-api/docs/image-generation?hl=ja |
+| 画像生成（gemini-3-pro-image-preview） | https://ai.google.dev/gemini-api/docs/image-generation?hl=ja |
 | Thinking機能 | https://ai.google.dev/gemini-api/docs/thinking?hl=ja |
 | マルチモーダル | https://ai.google.dev/gemini-api/docs/vision?hl=ja |
 
