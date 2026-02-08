@@ -175,9 +175,9 @@
 ## 機能要件
 
 ### FR-001: ウェブアプリ
-- React + Vite + Tailwind CSS + Zustand + SWR構成
+- Next.js + Tailwind CSS + Zustand + SWR構成
 - Web Hostingでホスティング（CI/CDは運用選択）
-- PWA対応（Service Worker）
+- PWA対応（manifest + Service Worker, 最小構成）
 - レスポンシブデザイン
 
 ### FR-002: 画像ストレージ・公開
