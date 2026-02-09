@@ -5,6 +5,16 @@ from enum import IntEnum
 from pydantic import BaseModel, Field
 
 
+class MotifIdentification(BaseModel):
+    """モチーフ識別結果（軽量分析用）"""
+
+    primary_motif: str = Field(..., description="メインのモチーフ名（例: りんご、石膏像、手）")
+    tags: list[str] = Field(
+        default_factory=list,
+        description="関連タグのリスト（3〜5個）",
+    )
+
+
 class Rank(IntEnum):
     """デッサンスキルランク (1-15)"""
     KYU_10 = 1

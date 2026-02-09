@@ -14,7 +14,7 @@ from pydantic import ValidationError
 from .callbacks import save_analysis_to_memory
 from .config import settings
 from .memory_tools import MemoryEntry, search_memory_by_motif, search_recent_memories
-from .models import DessinAnalysis, Rank
+from .models import DessinAnalysis, MotifIdentification, Rank
 from .prompts import (
     DESSIN_ANALYSIS_USER_PROMPT,
     get_dessin_analysis_system_prompt,
@@ -82,11 +82,154 @@ def _extract_overall_score_from_fact(fact: str) -> float | None:
         return None
 
 
+# モチーフ識別用の軽量プロンプト
+MOTIF_IDENTIFICATION_PROMPT = """画像に描かれているデッサンのモチーフを識別してください。
+
+出力形式（JSON）:
+{
+  "primary_motif": "メインのモチーフ名（例: りんご、石膏像、手）",
+  "tags": ["タグ1", "タグ2", "タグ3"]
+}
+
+注意:
+- tagsには関連するキーワードを3〜5個含めてください
+- 日本語で回答してください
+"""
+
+
+def identify_motif(
+    image_url: str,
+    tool_context: "ToolContext | None" = None,
+) -> dict[str, object]:
+    """画像からモチーフを識別（軽量処理）
+
+    デッサン画像を分析し、描かれているモチーフ（対象物）を
+    識別します。分析前のメモリ検索用に使用します。
+
+    Args:
+        image_url: 分析対象の画像URL
+        tool_context: ADKツールコンテキスト（自動注入）
+
+    Returns:
+        識別結果を含む辞書。以下のキーを含む:
+        - status: "success" または "error"
+        - primary_motif: メインのモチーフ名（例: "りんご"）
+        - tags: 関連タグのリスト（例: ["りんご", "静物", "球体"]）
+        - error_message: エラー時のメッセージ（エラー時のみ）
+
+    Example:
+        >>> result = identify_motif("https://storage.googleapis.com/.../drawing.jpg")
+        >>> print(result["primary_motif"])
+        "りんご"
+        >>> print(result["tags"])
+        ["りんご", "静物", "球体"]
+    """
+    logger.info("identify_motif_start: url=%s", image_url[:100] if image_url else "")
+
+    try:
+        # URL検証
+        validated_url = _validate_image_url(image_url)
+        logger.info("identify_motif: validated_url=%s", validated_url[:100])
+
+        # GCS URIに変換
+        gcs_uri = _convert_to_gcs_uri(validated_url)
+        logger.info("identify_motif: gcs_uri=%s", gcs_uri[:100])
+
+        # Gemini クライアント初期化
+        client = genai.Client(
+            vertexai=True,
+            project=settings.gcp_project_id,
+            location=settings.gemini_location,
+        )
+
+        # MIMEタイプを判定
+        mime_type = "image/jpeg"
+        if gcs_uri.lower().endswith(".png"):
+            mime_type = "image/png"
+        logger.info("identify_motif: mime_type=%s", mime_type)
+
+        # 画像をGCS URIから取得してPart作成
+        image_part = types.Part.from_uri(
+            file_uri=gcs_uri,
+            mime_type=mime_type,
+        )
+
+        # 軽量な分析リクエスト
+        logger.info("identify_motif: sending request to model=%s", settings.gemini_model)
+        response = client.models.generate_content(
+            model=settings.gemini_model,
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_text(text=MOTIF_IDENTIFICATION_PROMPT),
+                        image_part,
+                    ],
+                ),
+            ],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=MotifIdentification,
+            ),
+        )
+
+        # レスポンスのデバッグ情報
+        response_text = getattr(response, "text", None)
+        logger.info(
+            "identify_motif: response received, has_text=%s, text_len=%d, text_preview=%s",
+            bool(response_text),
+            len(response_text) if response_text else 0,
+            (response_text[:200] if response_text else "EMPTY"),
+        )
+
+        # レスポンスが空の場合のフォールバック
+        if not response_text:
+            logger.warning("identify_motif: empty response from Gemini")
+            return {
+                "status": "error",
+                "error_message": "Geminiからの応答が空です",
+                "primary_motif": "",
+                "tags": [],
+            }
+
+        # レスポンスをパース
+        import json
+
+        result_data = json.loads(response_text)
+        primary_motif = result_data.get("primary_motif", "")
+        tags = result_data.get("tags", [])
+
+        # tagsの先頭にprimary_motifがなければ追加
+        if primary_motif and (not tags or tags[0] != primary_motif):
+            tags = [primary_motif, *[t for t in tags if t != primary_motif]]
+
+        logger.info(
+            "identify_motif_done: motif=%s, tags=%s",
+            primary_motif,
+            tags,
+        )
+
+        return {
+            "status": "success",
+            "primary_motif": primary_motif,
+            "tags": tags,
+        }
+
+    except Exception as e:
+        logger.exception("identify_motif_failed: %s", e)
+        return {
+            "status": "error",
+            "error_message": f"モチーフ識別に失敗しました: {e!s}",
+            "primary_motif": "",
+            "tags": [],
+        }
+
 def analyze_dessin_image(
     image_url: str,
     rank_label: str = "初学者",
     user_id: str = "",
     session_id: str = "",
+    past_memories: list[dict[str, object]] | None = None,
     tool_context: "ToolContext | None" = None,
 ) -> dict[str, object]:
     """デッサン画像を分析し、フィードバックを返す
@@ -99,6 +242,7 @@ def analyze_dessin_image(
         rank_label: ユーザーの現在のランク（例: "10級", "初段"）
         user_id: ユーザーID（メモリ保存用）
         session_id: セッションID（レビューID、メモリ保存用）
+        past_memories: 過去のデッサン分析結果（成長比較用）
         tool_context: ADKツールコンテキスト（自動注入）
 
     Returns:
@@ -113,7 +257,8 @@ def analyze_dessin_image(
         ...     "https://storage.googleapis.com/.../drawing.jpg",
         ...     "5級",
         ...     "user123",
-        ...     "review123"
+        ...     "review123",
+        ...     past_memories=[{"fact": "...", "metadata": {...}}]
         ... )
         >>> print(result["status"])
         "success"
@@ -135,12 +280,14 @@ def analyze_dessin_image(
         user_id_length=len(user_id),
         session_id_length=len(session_id),
         has_tool_context=tool_context is not None,
+        past_memories_count=len(past_memories) if past_memories else 0,
     )
     logger.info(
-        "analyze_dessin_image_start: rank=%s, user=%s, session=%s",
+        "analyze_dessin_image_start: rank=%s, user=%s, session=%s, memories=%d",
         rank_label,
         user_id,
         session_id,
+        len(past_memories) if past_memories else 0,
     )
 
     try:
@@ -178,8 +325,8 @@ def analyze_dessin_image(
             bool(tool_context and getattr(tool_context, "user_id", None)),
         )
 
-        # プロンプト生成（成長情報はLLMに生成させず、後で補正する）
-        system_prompt = get_dessin_analysis_system_prompt(rank_label)
+        # プロンプト生成（過去メモリを含める）
+        system_prompt = get_dessin_analysis_system_prompt(rank_label, past_memories)
         user_prompt = DESSIN_ANALYSIS_USER_PROMPT
 
         # 分析リクエスト
@@ -220,42 +367,24 @@ def analyze_dessin_image(
             analysis.tags,
         )
 
-        # === 成長トラッキング: 分析後にメモリ取得して補正 ===
+        # === 成長トラッキング: 引数で渡されたpast_memoriesを使用 ===
         if effective_user_id:
-            # Step 1: モチーフでフィルタして検索
-            motif = analysis.tags[0] if analysis.tags else None
-            past_memories: list[MemoryEntry] = []
+            # 引数で渡されたpast_memoriesを使用（内部検索は行わない）
+            memories_for_growth: list[MemoryEntry] = []
+            if past_memories:
+                # dict[str, object]からMemoryEntry形式に変換
+                for mem in past_memories:
+                    memories_for_growth.append({
+                        "fact": str(mem.get("fact", "")),
+                        "metadata": mem.get("metadata", {}),
+                    })
 
-            if not motif:
-                logger.info(
-                    "モチーフ未確定のため全履歴検索にフォールバック: user=%s",
-                    effective_user_id,
-                )
-
-            if motif:
-                past_memories = search_memory_by_motif(motif, effective_user_id)
-                logger.info(
-                    "モチーフ別メモリ検索: user=%s, motif=%s, count=%d",
-                    effective_user_id,
-                    motif,
-                    len(past_memories),
-                )
-
-            # Step 2: フォールバック - 見つからなければ全履歴で再検索
-            if not past_memories:
-                past_memories = search_recent_memories(effective_user_id, limit=5)
-                logger.info(
-                    "フォールバック: 全履歴検索 user=%s, count=%d",
-                    effective_user_id,
-                    len(past_memories),
-                )
-
-            # Step 3: 成長スコア補正
+            # 成長スコア補正
             logger.info(
                 "growth_adjust_start: past_memories=%d",
-                len(past_memories),
+                len(memories_for_growth),
             )
-            analysis = _calculate_growth_from_memories(analysis, past_memories)
+            analysis = _calculate_growth_from_memories(analysis, memories_for_growth)
             logger.info(
                 "growth_adjusted: score=%s, summary=%s",
                 analysis.growth.score,

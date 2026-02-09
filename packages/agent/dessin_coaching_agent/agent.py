@@ -14,7 +14,7 @@ from .config import settings
 from .custom_gemini import GlobalGemini
 from .memory_tools import search_memory_by_motif, search_recent_memories
 from .prompts import get_dessin_analysis_system_prompt
-from .tools import analyze_dessin_image
+from .tools import analyze_dessin_image, identify_motif
 
 # logging 設定（Agent Engine の stdout に出力）
 if not logging.getLogger().handlers:
@@ -37,6 +37,7 @@ root_agent = Agent(
     description="鉛筆デッサンを分析し、改善フィードバックを提供するコーチングエージェント",
     instruction=get_dessin_analysis_system_prompt(),
     tools=[
+        identify_motif,
         analyze_dessin_image,
         preload_memory_tool,
         search_memory_by_motif,

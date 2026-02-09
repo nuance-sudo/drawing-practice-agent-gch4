@@ -1,17 +1,22 @@
 """コーチング用プロンプト定義"""
 
 
-def get_dessin_analysis_system_prompt(rank_label: str = "10級") -> str:
-    """ランク情報を含むシステムプロンプトを生成
+def get_dessin_analysis_system_prompt(
+    rank_label: str = "10級",
+    past_memories: list[dict[str, object]] | None = None,
+) -> str:
+    """ランク情報と過去メモリを含むシステムプロンプトを生成
 
     Args:
         rank_label: ユーザーの現在のランクラベル（例: "10級", "5級", "初段"）
+        past_memories: 過去のデッサン分析結果のリスト
 
     Returns:
-        ランク情報を含むシステムプロンプト
+        ランク情報と過去メモリを含むシステムプロンプト
     """
     rank_category = _get_rank_category(rank_label)
     rank_focus = _get_rank_focus_instruction(rank_category)
+    past_memories_section = _build_past_memories_section(past_memories)
 
     return f"""あなたは経験豊富な鉛筆デッサンの講師です。
 生徒から提出されたデッサン画像を分析し、具体的で建設的なフィードバックを提供してください。
@@ -163,27 +168,22 @@ def get_dessin_analysis_system_prompt(rank_label: str = "10級") -> str:
 - 初心者には基礎的な要素を重視し、上級者には高度な要素も評価する
 
 ## 成長トラッキング（5つ目の採点項目）
-
-**重要**: 必ず「分析 → メモリ検索 → 成長評価」の順で実行してください。
-モチーフが確定したら、まず `search_memory_by_motif` で検索し、
-見つからなければ `search_recent_memories` でフォールバックします。
-
-### 成長評価の手順
-
-1. **分析実行**: `analyze_dessin_image` を実行する
-2. **モチーフ確定**: 分析結果のタグからモチーフを確定する
-3. **メモリ検索**: `search_memory_by_motif(motif, user_id)` を呼び出す
-4. **フォールバック**: 0件なら `search_recent_memories(user_id, limit=5)` を呼び出す
-5. **比較・評価**: 今回の分析結果と過去データを比較して成長を評価
-
+{past_memories_section}
 ### 成長スコアの評価基準
 
 **過去メモリがある場合（2回目以降）:**
-- **80-100点**: 明確なスコア向上または技術的ブレイクスルーがある
-- **60-79点**: 安定した維持または部分的な改善がある
-- **40-59点**: 大きな変化はないが継続的に取り組んでいる
-- **20-39点**: スコア低下があるが、より難しいモチーフへの挑戦を考慮
-- **0-19点**: 明らかな後退が見られる
+成長スコアは「前回の改善点（アドバイス）を実践できたか」を基準に評価してください。
+
+- **80-100点**: 前回の改善点を明確に実践しており、技術的な成長が見られる
+- **60-79点**: 前回の改善点を部分的に実践しているが、まだ改善の余地がある
+- **50-59点**: 前回の改善点が実践できていない（改善点が改善されていない状態）
+- **30-49点**: 前回の改善点が実践できておらず、他の面でも後退が見られる
+- **0-29点**: 明らかに技術が後退している
+
+**評価のポイント:**
+- 過去メモリの「改善点」欄を確認し、今回の作品でそれが実践されているかを分析する
+- 改善点が実践されていれば高い成長スコアを与える
+- スコアの絶対値ではなく、アドバイスの実践度を重視する
 
 **初回提出（過去メモリなし / search_recent_memoriesで結果が空）:**
 - `comparison_summary`: "初回提出のため比較データなし"
@@ -208,6 +208,17 @@ def get_dessin_analysis_system_prompt(rank_label: str = "10級") -> str:
 4. **session_id**: ユーザーから提供されたセッションID（レビューID）
 
 ユーザーのメッセージにはこれらの情報が含まれています。特に**user_id**と**session_id**は、メモリ保存に必要なため、必ず抽出してツールに渡してください。
+
+## エージェントのワークフロー（重要）
+
+必ず以下の順序でツールを呼び出してください:
+
+1. **モチーフ識別**: `identify_motif(image_url)` を呼び出し、画像のモチーフを識別する
+2. **メモリ検索**: `search_memory_by_motif(motif, user_id)` で同じモチーフの過去データを取得
+3. **フォールバック**: 0件なら `search_recent_memories(user_id, limit=5)` で全履歴を取得
+4. **分析実行**: `analyze_dessin_image(image_url, rank_label, user_id, session_id, past_memories=取得したメモリ)` を呼び出す
+
+この順序で実行することで、分析時に過去のデータを参照し、正確な成長フィードバックを生成できます。
 """
 
 
@@ -279,4 +290,59 @@ JSON形式で回答してください。
 """
 
 
+def _build_past_memories_section(
+    past_memories: list[dict[str, object]] | None,
+) -> str:
+    """過去メモリをプロンプト用のセクション文字列に変換
 
+    Args:
+        past_memories: 過去のデッサン分析結果のリスト
+
+    Returns:
+        プロンプトに挿入する過去メモリセクションの文字列
+    """
+    if not past_memories:
+        return """
+**過去データ**: なし（初回提出）
+
+初回提出のため、成長スコアは null にしてください。
+"""
+
+    section_parts = [
+        """
+**過去データ**: 以下の過去のデッサン分析結果を参照して、成長を評価してください。
+
+"""
+    ]
+
+    for idx, mem in enumerate(past_memories[:5], start=1):  # 最大5件まで
+        fact = str(mem.get("fact", ""))
+        metadata = mem.get("metadata", {})
+
+        # メタデータから情報を抽出
+        overall_score = ""
+        motif = ""
+        if isinstance(metadata, dict):
+            score_val = metadata.get("overall_score")
+            if score_val is not None:
+                overall_score = f"総合スコア: {score_val}/100"
+            motif_val = metadata.get("motif")
+            if motif_val:
+                motif = f"モチーフ: {motif_val}"
+
+        section_parts.append(f"### 過去提出 {idx}\n")
+        if motif:
+            section_parts.append(f"- {motif}\n")
+        if overall_score:
+            section_parts.append(f"- {overall_score}\n")
+        if fact:
+            # factが長い場合は先頭500文字まで
+            truncated_fact = fact[:500] + "..." if len(fact) > 500 else fact
+            section_parts.append(f"- 詳細: {truncated_fact}\n")
+        section_parts.append("\n")
+
+    section_parts.append("""
+上記の過去データと今回の提出を比較し、成長を評価してください。
+""")
+
+    return "".join(section_parts)
