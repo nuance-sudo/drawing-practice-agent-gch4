@@ -1,6 +1,7 @@
 :::message
 この記事は**第4回 Agentic AI Hackathon with Google Cloud** 参加プロジェクトの紹介記事です
 :::
+https://zenn.dev/hackathons/google-cloud-japan-ai-hackathon-vol4?tab=overview
 
 
 ## はじめに
@@ -8,7 +9,13 @@
 はじめまして。今回のハッカソンをきっかけに Zenn デビューします。
 本記事では、このハッカソンに向けて構築したエージェントプロジェクトである**Art coachIng** を紹介します。
 
-### なぜ作ったのか
+## デモ動画
+
+https://www.youtube.com/watch?v=KFUuolX9VuA
+
+
+
+## 背景
 
 私は普段、生成AI推進の仕事をしているのですが、ある課題を感じていました。
 **「使う人はどんどん使う、使わない人は全く使わない」という二極化**が進んでいることです。
@@ -16,7 +23,7 @@
 そんな中、普段ITに縁がないスマホ教室帰りの母から相談を受けました。
 「チャッピーを使って写真を絵に変換したいけど、うまくいかない」
 
-驚きました。まさか母の口から AI の話が出てくるとは。
+驚きました。まさか母の口から AI の話が出てくるとは。。。
 
 このことから
 **「創作」という楽しさを入り口にすれば、AIに縁遠い人でも自然と使い始める**
@@ -27,14 +34,14 @@
 
 はたして、生成AIで絵の先生を作ったら、美術の成績2だった自分でも上達できるのか！？
 
-![はじめて書いたリンゴのデッサン](docs/samples/sample1.jpg)
+![はじめて書いたリンゴのデッサン](https://storage.googleapis.com/zenn-user-upload/ce1e66ef0eef-20260209.jpg)
+
 *はじめて書いたリンゴのデッサン*
 
----
 
 ## プロジェクト概要
 
-ウェブアプリからデッサン画像をアップロードすると、AIエージェントが**プロの美術講師のような視点**で分析し、具体的な改善点をフィードバック。さらに「お手本画像（ネクストステップのイメージ）」を生成して視覚的な学習をサポートします。
+ウェブアプリからデッサン画像をアップロードすると、AIエージェントが**プロの美術講師のような視点**で分析し、具体的な改善点をフィードバック。さらに「お手本画像（次に書くべき一枚）」を生成して視覚的な学習をサポートします。
 
 ### ターゲットユーザー
 
@@ -134,7 +141,7 @@ flowchart TB
 | データ | Firestore / Cloud Storage / Memory Bank |
 | 認証 | Firebase Authentication |
 
-### ワークフロー
+### エージェントワークフロー
 
 ```mermaid
 sequenceDiagram
@@ -170,9 +177,8 @@ sequenceDiagram
 
 ユーザーのランクと過去の投稿履歴は Firestore で管理されています。分析時にランクを参照し、レベルに応じた評価を行います。総合スコア80点以上で昇格できますが、ランクが上がるにつれ評価も厳しくなるため、「今の自分に合った課題」に挑戦し続けられます。
 
-![main](docs/images/main.png)
-![review](docs/images/review.png)
-
+![main](https://storage.googleapis.com/zenn-user-upload/b641197baa6d-20260209.png)
+![review](https://storage.googleapis.com/zenn-user-upload/75d2433c7330-20260209.png)
 
 ## エージェントの仕組み
 
@@ -180,13 +186,13 @@ sequenceDiagram
 
 エージェントはまず「何を描いたデッサンか」を判断します。ここで付けたモチーフタグをもとに、次のフェーズで Memory Bank をフィルター検索し、同じモチーフの過去作品を取得します。
 
-### Memory Bank で過去を思い出す
+### メモリ取得
 
 エージェントはユーザーIDとモチーフタグをキーにして Memory Bank を検索し、該当ユーザーの同じモチーフ（存在しない場合はユーザーのみ）に関する過去データを取得します。
 
 取得されるのは、過去のスコア（総合76点、プロポーション78点...）、前回の強み・改善点、成長サマリーなどです。エージェントはこれを文脈として保持し、今回の分析と比較します。
 
-今回 Vertex AI Agent Engine を利用したこのメモリの部分が大きいです。
+今回 Vertex AI Agent Engine を採用した決め手は、この Memory Bank 機能でした。
 Memory Bank を使うことで、ライブラリ化されたメモリ生成・取得関数を使用でき、簡単にメモリ管理することができました。
 
 ### デッサン分析 & 成長スコア計算
@@ -217,13 +223,11 @@ Memory Bank を使うことで、ライブラリ化されたメモリ生成・�
 
 従来のマルチモーダル AI は画像を「一度見て終わり」でしたが、Agentic Vision ではエージェントが Think → Act → Observe のループで自律的に画像を操作できます。ズームインなどの画像操作を自分で判断して実行してくれるのが強みです。
 
-今回のプロジェクトでは、テキストで出力された分析情報（「陰影が弱い」「プロポーションがずれている」など）を、デッサン上の具体的な改善ポイントとしてアノテーションにつなげています。抽象的なフィードバックを視覚的に落とし込めるのが、この機能の魅力です（もっと流行れ）。
+今回のプロジェクトでは、テキストで出力された分析情報（「陰影が弱い」「プロポーションがずれている」など）を、デッサン上の具体的な改善ポイントとしてアノテーションにつなげています。抽象的なフィードバックを視覚的に落とし込めるのが、この機能の魅力です。（もっと流行れ）
 
-Googleアカウントがあれば、[デモ](https://aistudio.google.com/apps/bundled/gemini_visual_thinking?e=0&showPreview=true&showAssistant=true&fullscreenApplet=true)を体験できます。デモを試すだけでもその凄さがわかるのでぜひ。
+![annotation](https://storage.googleapis.com/zenn-user-upload/bffdb52c8502-20260209.png)
 
-![annotation](docs/images/annotation.png)
-
-![annotation_review](docs/images/annotation_review.png)
+![annotation_review](https://storage.googleapis.com/zenn-user-upload/0df86fb071bc-20260209.png)
 
 ### お手本画像を生成
 
@@ -233,17 +237,12 @@ Googleアカウントがあれば、[デモ](https://aistudio.google.com/apps/bu
 
 さらに、前フェーズで作成したアノテーション画像も入力として渡すことで、単に「上手いデッサン」を生成するのではなく、そのユーザーにとってのネクストステップとなるお手本を生成します。改善点にフォーカスした具体的な「次の一歩」が視覚的に示されるため、何を意識して練習すればいいかが明確になります
 
-![role_model](docs/images/role_model.png)
+![role_model](https://storage.googleapis.com/zenn-user-upload/be22af82b607-20260209.png)
+
 
 #### 改善点を意識せずに作っていたころの画像
 
-![damedame_model](docs/images/damedame.png)
-
----
-
-## デモ動画
-
-（TODO: YouTube動画を埋め込み）
+![damedame_model](https://storage.googleapis.com/zenn-user-upload/9bf39ed8e138-20260209.png)
 
 ## 成果
 
@@ -257,7 +256,7 @@ Googleアカウントがあれば、[デモ](https://aistudio.google.com/apps/bu
 
 技術面では、ADK と Vertex AI Agent Engine のおかげで、エージェントのイベントループやホスティングを意識せずに開発できました。メモリ管理もマネージドサービスとして提供されているため、管理に悩む必要がありませんでした。
 
-また、Firebase も地味に便利でした。ログイン認証は Firebase Authentication のコンソールからボタン操作だけで設定完了できました。また、Firestore のリアルタイムリスナーを使えば、ステータス変更時にフロントエンドが自動更新されるため、ポーリング処理を書く必要がありませんでした。
+フロントエンドで採用した Firebase も地味に便利でした。ログイン認証は Firebase Authentication のコンソールからボタン操作だけで設定完了できました。また、Firestore のリアルタイムリスナーを使えば、ステータス変更時にフロントエンドが自動更新されるため、ポーリング処理を書く必要がありませんでした。
 
 普段は AWS を利用しているため GCP は初めてでしたが、今回のハッカソンを通じて Vertex AI、Cloud Run、Firebase など幅広いサービスに触れることができました。良い学びの機会になりました。
 

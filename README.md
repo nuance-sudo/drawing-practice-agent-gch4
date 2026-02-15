@@ -2,7 +2,9 @@
 
 > 鉛筆デッサンコーチングエージェント
 
-**第4回 Agentic AI Hackathon with Google Cloud** 参加プロジェクト
+**[第4回 Agentic AI Hackathon with Google Cloud](https://zenn.dev/hackathons/google-cloud-japan-ai-hackathon-vol4?tab=overview)** 参加プロジェクト
+
+📝 **[Zenn 紹介記事: あなたの絵に「次の一歩」を見せるエージェント「Art coachIng」](https://zenn.dev/nuance/articles/bed956f867e4a4)**
 
 Google Cloud の最新AI技術（Gemini, ADK, Vertex AI）を駆使した、美術学習者のためのインテリジェントなデッサンコーチングエージェントです。
 
@@ -34,8 +36,8 @@ Google Cloud の最新AI技術（Gemini, ADK, Vertex AI）を駆使した、美�
 
 ## 📷 アプリケーション画面
 
-![アプリケーションヘッダー](docs/images/header.png)
-![フィードバック詳細](docs/images/detail.png)
+![アプリケーションヘッダー](docs/images/main.png)
+![フィードバック詳細](docs/images/review.png)
 
 ## 🧭 体験フロー
 

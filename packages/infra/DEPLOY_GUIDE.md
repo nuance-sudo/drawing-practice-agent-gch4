@@ -222,3 +222,94 @@ GCP_REGION: global
 
 > **Note**: Gemini 3モデルはグローバルエンドポイント経由でのみアクセス可能です。
 > 詳細: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations`
+
+---
+
+## MCP ツールを使った簡易デプロイ
+
+MCP（Model Context Protocol）サーバーを設定することで、AIアシスタント（Antigravity等）から直接デプロイ操作が可能です。
+
+### 前提条件
+
+```bash
+# GCP認証（初回のみ）
+gcloud auth login
+gcloud auth application-default login
+```
+
+### 利用可能なMCPサーバー
+
+| MCP サーバー | 用途 | デプロイ対象 |
+|-------------|------|------------|
+| **Cloud Run MCP** | Cloud Runサービスのデプロイ・管理 | エージェントAPI |
+| **Firebase MCP** | Firebase Hosting / Firestoreルール等の管理 | Webアプリ、Firestoreルール |
+
+### Cloud Run MCP でのデプロイ
+
+AIアシスタントに以下のように依頼するだけでデプロイできます：
+
+- 「`packages/agent` をCloud Runにデプロイして」
+- 「Cloud Runサービスの一覧を見せて」
+- 「Cloud Runサービスのログを確認して」
+
+**主なツール:**
+
+| ツール名 | 説明 |
+|---------|------|
+| `deploy_local_folder` | ローカルフォルダをCloud Runにデプロイ |
+| `deploy_file_contents` | ファイル内容を直接指定してデプロイ |
+| `list_services` | Cloud Runサービス一覧取得 |
+| `get_service` | サービス詳細取得 |
+| `get_service_log` | サービスログ取得 |
+
+**デフォルト設定:**
+
+| 設定 | 値 |
+|------|-----|
+| プロジェクト | `your-project-id` |
+| リージョン | `us-central1` |
+
+### Firebase MCP でのデプロイ
+
+AIアシスタントに以下のように依頼するだけでデプロイできます：
+
+- 「Firebase Hostingにデプロイして」
+- 「Firestoreのコレクション一覧を見せて」
+- 「セキュリティルールを確認して」
+
+**主なツール:**
+
+| ツール名 | 説明 |
+|---------|------|
+| `firebase_init` | Firebaseサービスの初期化 |
+| `firestore_list_collections` | Firestoreコレクション一覧 |
+| `firestore_get_documents` | ドキュメント取得 |
+| `firestore_query_collection` | コレクションクエリ |
+| `firebase_get_security_rules` | セキュリティルール取得 |
+| `firebase_validate_security_rules` | セキュリティルール検証 |
+
+**プロジェクトディレクトリ:** `your/project/directory`
+
+### MCP 設定ファイル
+
+Antigravity環境: `~/.gemini/antigravity/mcp_config.json`
+
+```json
+{
+  "cloudrun": {
+    "command": "npx",
+    "args": ["-y", "@google-cloud/cloud-run-mcp"],
+    "env": {
+      "GOOGLE_CLOUD_PROJECT": "your-project-id",
+      "GOOGLE_CLOUD_REGION": "us-central1"
+    }
+  },
+  "firebase-mcp-server": {
+    "command": "npx",
+    "args": ["-y", "firebase-tools@latest", "mcp"],
+    "env": {
+      "FIREBASE_PROJECT_DIR": "your/project/directory"
+    }
+  }
+}
+```
