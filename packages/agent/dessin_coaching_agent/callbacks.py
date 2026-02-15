@@ -82,12 +82,17 @@ def save_analysis_to_memory(
 
         # Memory Bankに保存（direct_memories_sourceを使用）
         # https://cloud.google.com/agent-builder/agent-engine/memory-bank/generate-memories
+        # REQUIRE_EXACT_MATCHを使用して、メタデータ（submitted_at等）が
+        # 完全一致するメモリのみ統合対象にする。
+        # これにより各分析結果は独立したメモリとして蓄積される。
+        # See: https://docs.cloud.google.com/agent-builder/agent-engine/memory-bank/generate-memories#metadata
         _ = client.agent_engines.memories.generate(
             name=engine_name,
             direct_memories_source={"direct_memories": [{"fact": fact}]},
             scope=scope,
             config=types.GenerateAgentEngineMemoriesConfig(
                 metadata=metadata,
+                metadata_merge_strategy=types.MemoryMetadataMergeStrategy.REQUIRE_EXACT_MATCH,
             ),
         )
 
