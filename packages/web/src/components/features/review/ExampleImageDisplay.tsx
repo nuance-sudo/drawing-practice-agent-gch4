@@ -22,6 +22,10 @@ interface ExampleImageDisplayProps {
   isAnnotating?: boolean;
   /** アノテーション生成に失敗したかどうか */
   annotationFailed?: boolean;
+  /** 画像生成リトライコールバック */
+  onRetryImages?: () => void;
+  /** リトライ中かどうか */
+  isRetrying?: boolean;
 }
 
 export const ExampleImageDisplay: React.FC<ExampleImageDisplayProps> = ({
@@ -32,6 +36,8 @@ export const ExampleImageDisplay: React.FC<ExampleImageDisplayProps> = ({
   generationFailed = false,
   isAnnotating = false,
   annotationFailed = false,
+  onRetryImages,
+  isRetrying = false,
 }) => {
   return (
     <div className="space-y-6">
@@ -79,7 +85,21 @@ export const ExampleImageDisplay: React.FC<ExampleImageDisplayProps> = ({
           </div>
 
           <div className="relative">
-            {isAnnotating ? (
+            {isRetrying && !annotatedImageUrl ? (
+              <div className="flex items-center justify-center h-64 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border-2 border-dashed border-amber-300">
+                <div className="text-center space-y-4">
+                  <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mx-auto"></div>
+                  <div className="space-y-2">
+                    <p className="text-gray-700 font-medium">
+                      再生成中...
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      アノテーション画像を再生成しています
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : isAnnotating ? (
               <div className="flex items-center justify-center h-64 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border-2 border-dashed border-gray-300">
                 <div className="text-center space-y-4">
                   <div className="relative">
@@ -114,9 +134,15 @@ export const ExampleImageDisplay: React.FC<ExampleImageDisplayProps> = ({
                     <p className="text-red-700 font-medium">
                       アノテーション生成に失敗しました
                     </p>
-                    <p className="text-sm text-red-600 mt-1">
-                      テキストフィードバックをご参考ください
-                    </p>
+                    {onRetryImages && (
+                      <button
+                        onClick={onRetryImages}
+                        disabled={isRetrying}
+                        className="mt-3 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        再試行する
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -149,7 +175,21 @@ export const ExampleImageDisplay: React.FC<ExampleImageDisplayProps> = ({
           </div>
 
           <div className="relative">
-            {isGenerating ? (
+            {isRetrying && !exampleImageUrl ? (
+              <div className="flex items-center justify-center h-64 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border-2 border-dashed border-blue-300">
+                <div className="text-center space-y-4">
+                  <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+                  <div className="space-y-2">
+                    <p className="text-gray-700 font-medium">
+                      再生成中...
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      お手本画像を再生成しています
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : isGenerating ? (
               // 生成中の表示
               <div className="flex items-center justify-center h-64 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border-2 border-dashed border-gray-300">
                 <div className="text-center space-y-4">
@@ -197,9 +237,15 @@ export const ExampleImageDisplay: React.FC<ExampleImageDisplayProps> = ({
                     <p className="text-red-700 font-medium">
                       お手本画像の生成に失敗しました
                     </p>
-                    <p className="text-sm text-red-600 mt-1">
-                      テキストフィードバックをご参考ください
-                    </p>
+                    {onRetryImages && (
+                      <button
+                        onClick={onRetryImages}
+                        disabled={isRetrying}
+                        className="mt-3 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        再試行する
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

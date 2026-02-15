@@ -426,3 +426,148 @@ async def delete_review(
         task_id=task_id,
         user_id=current_user.user_id,
     )
+
+
+@router.post("/{task_id}/retry-images", response_model=ReviewTaskResponse)
+async def retry_images(
+    task_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> ReviewTaskResponse:
+    """画像生成をリトライ（アノテーション・お手本画像）
+
+    completedステータスで画像が未生成のタスクに対して、
+    アノテーション画像・お手本画像の生成を再実行する。
+
+    Args:
+        task_id: タスクID
+
+    Returns:
+        更新されたタスク情報
+
+    Raises:
+        HTTPException 404: タスクが見つからない場合
+        HTTPException 403: 他ユーザーのタスクにアクセスした場合
+        HTTPException 400: リトライ不可な状態の場合
+    """
+    service = get_task_service()
+    task = service.get_task(task_id)
+
+    if task is None:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # 所有権チェック
+    if task.user_id != current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+
+    # completedステータスチェック
+    if task.status != TaskStatus.COMPLETED.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="リトライは完了済みタスクにのみ実行できます",
+        )
+
+    # feedbackデータが存在するかチェック
+    if not task.feedback:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="フィードバックデータが存在しません",
+        )
+
+    # 既に両方の画像が生成済みの場合はリトライ不要
+    if task.annotated_image_url and task.example_image_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="画像は既に生成済みです",
+        )
+
+    logger.info(
+        "retry_images_started",
+        task_id=task_id,
+        user_id=current_user.user_id,
+        has_annotated_image=bool(task.annotated_image_url),
+        has_example_image=bool(task.example_image_url),
+    )
+
+    try:
+        # DessinAnalysisの復元
+        from src.models.feedback import DessinAnalysis
+        dessin_analysis = DessinAnalysis(**task.feedback)
+
+        # UserRankの復元
+        from src.models.rank import Rank, UserRank
+        rank_service = get_rank_service()
+        user_rank = rank_service.get_user_rank(current_user.user_id)
+        if user_rank is None:
+            user_rank = UserRank(
+                user_id=current_user.user_id,
+                current_rank=Rank.KYU_10,
+                current_score=task.score,
+                rank_changed=False,
+            )
+
+        # アノテーション画像の再生成（未生成の場合のみ）
+        annotated_image_url = task.annotated_image_url
+        if not annotated_image_url:
+            try:
+                annotation_service = get_annotation_service()
+                annotated_image_url = await annotation_service.generate_annotated_image(
+                    task_id=task_id,
+                    original_image_url=task.image_url,
+                    analysis=dessin_analysis,
+                    user_rank=user_rank,
+                    motif_tags=dessin_analysis.tags,
+                )
+                if annotated_image_url:
+                    service.update_task_status(
+                        task_id,
+                        TaskStatus.COMPLETED,
+                        annotated_image_url=annotated_image_url,
+                    )
+                    logger.info("retry_annotation_completed", task_id=task_id)
+            except Exception as e:
+                logger.error(
+                    "retry_annotation_failed",
+                    task_id=task_id,
+                    error=str(e),
+                )
+
+        # お手本画像の再生成（未生成の場合のみ）
+        if not task.example_image_url:
+            try:
+                image_generation_service = get_image_generation_service()
+                await image_generation_service.generate_example_image(
+                    task_id=task_id,
+                    user_id=current_user.user_id,
+                    original_image_url=task.image_url,
+                    analysis=dessin_analysis,
+                    motif_tags=dessin_analysis.tags,
+                    annotated_image_url=annotated_image_url,
+                )
+                logger.info("retry_example_image_completed", task_id=task_id)
+            except Exception as e:
+                logger.error(
+                    "retry_example_image_failed",
+                    task_id=task_id,
+                    error=str(e),
+                )
+
+    except Exception as e:
+        logger.error(
+            "retry_images_error",
+            task_id=task_id,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="画像生成の再試行に失敗しました",
+        )
+
+    # 最新のタスク状態を返す
+    updated_task = service.get_task(task_id)
+    if updated_task is None:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    return ReviewTaskResponse.from_task(updated_task)

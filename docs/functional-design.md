@@ -151,6 +151,28 @@ flowchart TB
     L --> N[完了]
 ```
 
+### 画像生成リトライ機能
+
+自動リトライ（バックエンド）と手動リトライ（フロントエンド）の二段構えで画像生成の信頼性を向上。
+
+#### 自動リトライ（バックエンド）
+
+`AnnotationService` / `ImageGenerationService` のCloud Function呼び出しに、最大3回の指数バックオフリトライ（2秒→4秒→8秒）を実装。429 Resource Exhausted等の一時的エラーに対応。
+
+#### 手動リトライAPI
+
+自動リトライでも失敗した場合、フロントエンドから手動で再実行可能。
+
+| メソッド | パス | 説明 |
+|----------|------|------|
+| `POST` | `/reviews/{task_id}/retry-images` | completedタスクの画像再生成 |
+
+**前提条件:**
+- タスクステータスが `completed` であること
+- アノテーション画像 or お手本画像が未生成であること
+- リクエストユーザーがタスクのオーナーであること
+
+**処理内容:** 保存済みfeedbackデータから `DessinAnalysis` を復元し、`AnnotationService` / `ImageGenerationService` を再実行。成功時はFirestoreを更新し、Firestore `onSnapshot` によりフロントエンドが自動的にUIを更新。
 
 ---
 
