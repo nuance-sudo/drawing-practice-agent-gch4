@@ -479,16 +479,28 @@ async def process_review(payload: TaskPayload) -> None:
                     "motif_tags": tags,
                 }
             )
-            if annotation_result:
-                url = annotation_result.get("annotated_image_url")
-                if isinstance(url, str):
-                    annotated_image_url = url
-                logger.info("annotation_generation_completed", task_id=task_id)
+            if annotation_result is None:
+                # annotate-imageが失敗した場合、ステータスをfailedに更新
+                logger.error("annotation_generation_failed", task_id=task_id)
+                update_task_status(
+                    task_id,
+                    TaskStatus.FAILED,
+                    feedback=feedback_data,
+                    score=score,
+                    tags=tags,
+                    rank_changed=rank_changed,
+                    error_message="アノテーション画像の生成に失敗しました",
+                )
+                return
+            url = annotation_result.get("annotated_image_url")
+            if isinstance(url, str):
+                annotated_image_url = url
+            logger.info("annotation_generation_completed", task_id=task_id)
         
         # お手本画像生成（Cloud Function呼び出し）
         if IMAGE_GENERATION_FUNCTION_URL:
             logger.info("example_image_generation_started", task_id=task_id)
-            await call_cloud_function(
+            generation_result = await call_cloud_function(
                 IMAGE_GENERATION_FUNCTION_URL,
                 {
                     "task_id": task_id,
@@ -499,6 +511,20 @@ async def process_review(payload: TaskPayload) -> None:
                     "annotated_image_url": annotated_image_url,
                 }
             )
+            if generation_result is None:
+                # generate_imageが失敗した場合、ステータスをfailedに更新
+                logger.error("example_image_generation_failed", task_id=task_id)
+                update_task_status(
+                    task_id,
+                    TaskStatus.FAILED,
+                    feedback=feedback_data,
+                    score=score,
+                    tags=tags,
+                    rank_changed=rank_changed,
+                    annotated_image_url=annotated_image_url,
+                    error_message="お手本画像の生成に失敗しました",
+                )
+                return
             logger.info("example_image_generation_request_sent", task_id=task_id)
             # Cloud Functionからの完了通知待ちのため、ここでは完了にしない
         else:

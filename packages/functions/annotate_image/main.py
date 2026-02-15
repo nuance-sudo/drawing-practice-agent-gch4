@@ -118,8 +118,8 @@ COLOR PALETTE (use these colors for each number):
 
 EXACT SPECIFICATIONS:
 - Bounding box: Colored outline matching the number color, line width 3-4px
-- Number circle: Filled circle with the same color, radius ~20px
-- Number text: WHITE color, bold, font size 20-28px, centered in the circle
+- Number circle: Filled circle with the same color, radius ~30px
+- Number text: WHITE color, bold, font size 32-40px, centered in the circle
 - Place the numbered circle at the top-left corner of each bounding box
 
 Context:
@@ -162,11 +162,11 @@ color = colors[num - 1]
 draw.rectangle([x1, y1, x2, y2], outline=color, width=4)
 
 # 2. Draw numbered circle at top-left of box
-circle_x, circle_y = x1 - 15, y1 - 15
-draw.ellipse([circle_x - 18, circle_y - 18, circle_x + 18, circle_y + 18], fill=color)
+circle_x, circle_y = x1 - 20, y1 - 20
+draw.ellipse([circle_x - 28, circle_y - 28, circle_x + 28, circle_y + 28], fill=color)
 
 # 3. Draw the number in white
-font = ImageFont.load_default(size=24)
+font = ImageFont.load_default(size=36)
 draw.text((circle_x, circle_y), str(num), fill=white, font=font, anchor="mm")
 ```
 

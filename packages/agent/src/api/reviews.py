@@ -462,11 +462,12 @@ async def retry_images(
             detail="Access denied",
         )
 
-    # completedステータスチェック
-    if task.status != TaskStatus.COMPLETED.value:
+    # ステータスチェック（completedまたはfailedのみリトライ可能）
+    retryable_statuses = {TaskStatus.COMPLETED.value, TaskStatus.FAILED.value}
+    if task.status not in retryable_statuses:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="リトライは完了済みタスクにのみ実行できます",
+            detail="リトライは完了済みまたは失敗したタスクにのみ実行できます",
         )
 
     # feedbackデータが存在するかチェック
