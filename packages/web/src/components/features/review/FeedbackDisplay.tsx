@@ -13,9 +13,9 @@ type FeedbackDisplayProps = {
 
 export const FeedbackDisplay = ({ task, feedback, rankAtReview }: FeedbackDisplayProps) => {
     const isGenerating = task.status === 'processing' && !task.exampleImageUrl;
-    const generationFailed = task.status === 'completed' && !task.exampleImageUrl;
+    const generationFailed = (task.status === 'completed' || task.status === 'failed') && !task.exampleImageUrl;
     const isAnnotating = task.status === 'processing' && !task.annotatedImageUrl;
-    const annotationFailed = task.status === 'completed' && !task.annotatedImageUrl;
+    const annotationFailed = (task.status === 'completed' || task.status === 'failed') && !task.annotatedImageUrl;
 
     const [isRetrying, setIsRetrying] = useState(false);
 

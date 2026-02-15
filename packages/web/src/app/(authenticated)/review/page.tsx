@@ -84,6 +84,29 @@ function ReviewContent() {
                         feedback={task.feedback}
                         rankAtReview={task.rankAtReview ?? rank?.label ?? '10級'}
                     />
+                ) : task.status === 'failed' ? (
+                    <div className="space-y-6">
+                        <div className="bg-white rounded-3xl p-8 shadow-sm border border-red-200 text-center max-w-md mx-auto">
+                            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <AlertCircle className="w-8 h-8 text-red-600" />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-900 mb-2">分析に失敗しました</h3>
+                            <p className="text-slate-500 mb-4">
+                                {task.errorMessage ?? 'お手本画像の生成中にエラーが発生しました。'}
+                            </p>
+                            <p className="text-sm text-slate-400">
+                                しばらく時間をおいて、再度デッサンを提出してみてください。
+                            </p>
+                        </div>
+                        {/* failedでもフィードバックがある場合は表示（画像生成のみ失敗したケース） */}
+                        {task.feedback && (
+                            <FeedbackDisplay
+                                task={task}
+                                feedback={task.feedback}
+                                rankAtReview={task.rankAtReview ?? rank?.label ?? '10級'}
+                            />
+                        )}
+                    </div>
                 ) : (
                     <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 text-center max-w-md mx-auto">
                         <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />

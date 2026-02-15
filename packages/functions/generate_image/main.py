@@ -45,60 +45,70 @@ class InvalidImageURLError(Exception):
     """URL検証エラー"""
     pass
 
-# Base Prompt Template - Improvement focused, no rank information
+# Base Prompt Template - ユーザーの画風を維持した「次の一歩」のデッサン生成
 BASE_PROMPT_TEMPLATE = """
-Create an improved pencil drawing that demonstrates how to fix the specific improvement points identified in the analysis.
+あなたはデッサンコーチです。ユーザーが描いたデッサンの「次の一歩」となる改善版を生成してください。
+改善点のみを修正し、ユーザー固有の画風・技術レベルを忠実に維持してください。
 
-**Original Drawing Analysis:**
-- Overall Score: {overall_score}/100
-- Subject Matter: {motif_tags}
+**【最重要】画風の維持ルール：**
+- ユーザーのデッサンの画風・タッチ・技術レベルを忠実に再現すること
+- プロや上級者が描いたような理想的なデッサンにしないこと
+- 同じ人が描いたように見える仕上がりにすること（改善点のみ修正を適用）
+- ユーザー固有の線の太さ、陰影の付け方、全体的なアプローチを維持すること
+- 改善は段階的（インクリメンタル）であること。劇的な変化は不要
 
-**Strengths to Preserve (良い点):**
+**元のデッサンの分析結果：**
+- 総合スコア: {overall_score}/100
+- モチーフ: {motif_tags}
+
+**良い点（そのまま維持すること）：**
 {strengths_list}
 
-**Key Areas for Improvement (改善点) - FOCUS ON CORRECTING THESE:**
+**改善点（この修正のみ適用すること）：**
 {improvements_list}
 
-**Detailed Technical Feedback:**
-- **Proportion (形の正確さ)**: {proportion_feedback}
-- **Tone/Shading (陰影)**: {tone_feedback}
-- **Line Quality (線の質)**: {line_feedback}
-- **Texture (質感表現)**: {texture_feedback}
+**技術的な詳細フィードバック：**
+- **形の正確さ（プロポーション）**: {proportion_feedback}
+- **陰影（トーン）**: {tone_feedback}
+- **線の質（ライン）**: {line_feedback}
+- **質感表現（テクスチャ）**: {texture_feedback}
 
-**Primary Focus Areas:**
-Focus especially on correcting: {primary_improvement_areas}
+**重点改善領域：**
+特に以下を重点的に修正: {primary_improvement_areas}
 
-**Drawing Specifications:**
-- Medium: Graphite pencil on paper (realistic academic drawing style)
-- Style: Classical realism with proper pencil techniques
-- Format: Monochrome grayscale with full tonal range
-- Resolution: 1024px, high detail
-- Composition: Same subject matter with the improvement points corrected
+**デッサンの仕様：**
+- 画材: 鉛筆（グラファイト）と紙
+- 画風: 元のデッサンの画風・技術レベルに合わせること（理想化しないこと）
+- 色調: モノクロ・グレースケール
+- 解像度: 1024px、高精細
+- 構図: 元のデッサンと同じモチーフ・構図・アングル
 
-**Generation Instructions:**
-Create a pencil drawing that demonstrates how to CORRECT the specific improvement points mentioned above.
-The drawing should:
-1. Preserve the strengths already present in the original drawing
-2. Show clear corrections for each improvement point listed
-3. Demonstrate what the drawing would look like once the identified issues are fixed
+**生成指示：**
+ユーザーが次に目指すべき「達成可能な一歩」を示すデッサンを生成してください：
+1. 元のデッサンの画風と技術レベルをベースラインとする
+2. 上記の改善点に挙げた修正のみを適用する
+3. 構図・線の個性・陰影のアプローチなど、それ以外は元のデッサンにできる限り忠実にする
+4. ユーザーが現実的に次のステップとして達成できるような自然な改善にする
 
-Specific corrections needed: {specific_improvements}
+具体的に適用する修正: {specific_improvements}
 
-The result should be a traditional graphite pencil drawing that clearly shows
-how the identified improvement areas should be corrected, while maintaining
-the subject matter and good elements from the original.
+最終的な仕上がりは、ユーザー自身のデッサンにピンポイントの改善を加えたものにしてください。
+プロが描いた全く別のデッサンにはしないでください。
 """
 
-# Annotated Image Instruction - Added when annotated image is provided
+# アノテーション画像の参照指示 - アノテーション画像が提供された場合に追加
 ANNOTATED_IMAGE_INSTRUCTION = """
-**IMPORTANT - Annotated Reference Image:**
-A second image is provided showing the original drawing with colored bounding boxes and numbered circles.
-These annotations highlight specific areas that need improvement:
-- Each numbered circle corresponds to an improvement point listed above
-- Focus especially on correcting the issues in the areas marked by bounding boxes
-- Use the annotations as a visual guide to understand which parts of the drawing need the most attention
+**【重要】アノテーション参照画像について：**
+2枚目の画像は、元のデッサンに色付きのバウンディングボックスと番号付き丸印を重ねたものです。
+これらのアノテーションは改善が必要なエリアを示しています：
+- 各番号は上記の改善点リストの番号に対応しています
+- バウンディングボックスで囲まれたエリアの問題を重点的に修正してください
+- アノテーションを視覚的なガイドとして、どの部分に注力すべきか把握してください
 
-The generated example should show clear improvements in all annotated areas.
+**【厳守】生成画像にバウンディングボックス、番号付き丸印、色付き枠線、その他いかなるアノテーションマークも含めないでください。**
+アノテーションは参照用です。生成画像はクリーンな鉛筆デッサンでなければなりません。
+
+生成されるお手本は、アノテーションで示された全てのエリアで明確な改善を示してください。
 """
 
 def _validate_image_url(url: str) -> None:
@@ -337,7 +347,6 @@ async def generate_image(prompt: str, original_image_data: bytes, annotated_imag
 @functions_framework.http
 def generate_example_image(request):
     """HTTP Cloud Function entry point."""
-    
     # Check for authentication (Optional: if using Cloud Run Service to Service auth, request is already authenticated by IAM proxy. 
     # But if calling directly or for extra safety, we might check headers. 
     # For this implementation, we assume Cloud Run IAM handles auth.)
@@ -373,8 +382,8 @@ def generate_example_image(request):
             
             # 1. Fetch Image with timeout and size limits
             import aiohttp
-            # タイムアウト設定: 10秒
-            timeout = aiohttp.ClientTimeout(total=10)
+            # タイムアウト設定: 60秒
+            timeout = aiohttp.ClientTimeout(total=60)
             # サイズ制限: 10MB
             max_size = 10 * 1024 * 1024  # 10MB
             
@@ -552,5 +561,26 @@ def generate_example_image(request):
                     error=error_message,
                     error_type=error_type,
                     traceback=error_traceback)
+
+        # Firestoreのタスクステータスを「failed」に更新
+        if request_json and request_json.get("task_id"):
+            try:
+                from google.cloud import firestore as fs
+                from datetime import datetime
+                error_db = fs.Client()
+                error_db.collection("review_tasks").document(
+                    request_json["task_id"]
+                ).update({
+                    "status": "failed",
+                    "error_message": error_message[:500],
+                    "updated_at": datetime.now(),
+                })
+                logger.info("task_status_updated_to_failed",
+                            task_id=request_json["task_id"])
+            except Exception as update_err:
+                logger.error("failed_to_update_task_status",
+                            task_id=request_json.get("task_id"),
+                            error=str(update_err))
+
         # Ensure we return 500 so Cloud Functions/Scheduler knows it failed
         return {"error": error_message, "error_type": error_type}, 500

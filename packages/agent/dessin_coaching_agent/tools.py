@@ -522,9 +522,9 @@ def _calculate_growth_from_memories(
     avg_past_score = sum(past_scores) / len(past_scores)
     score_diff = analysis.overall_score - avg_past_score
 
-    # 成長スコア = 50 + 差分（0-100にクランプ）
-    # 50点 = 維持、50以上 = 成長、50未満 = 後退
-    growth_score = max(0.0, min(100.0, 50.0 + score_diff))
+    # 成長スコア = 70 + 差分（0-100にクランプ）
+    # 70点 = 現状維持、70以上 = 成長、70未満 = 後退
+    growth_score = max(0.0, min(100.0, 70.0 + score_diff))
 
     analysis.growth.score = growth_score
     analysis.growth.comparison_summary = (
