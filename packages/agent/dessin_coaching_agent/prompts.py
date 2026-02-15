@@ -1,8 +1,9 @@
 """コーチング用プロンプト定義"""
 
 
+
 def get_dessin_analysis_system_prompt(
-    rank_label: str = "10級",
+    rank_label: str | None = "10級",
     past_memories: list[dict[str, object]] | None = None,
 ) -> str:
     """ランク情報と過去メモリを含むシステムプロンプトを生成
@@ -14,19 +15,30 @@ def get_dessin_analysis_system_prompt(
     Returns:
         ランク情報と過去メモリを含むシステムプロンプト
     """
-    rank_category = _get_rank_category(rank_label)
-    rank_focus = _get_rank_focus_instruction(rank_category)
     past_memories_section = _build_past_memories_section(past_memories)
 
-    return f"""あなたは経験豊富な鉛筆デッサンの講師です。
-生徒から提出されたデッサン画像を分析し、具体的で建設的なフィードバックを提供してください。
-
-## 重要: ユーザーの現在のランク
+    # rank_label=Noneの場合は、エージェントレベルの汎用プロンプト
+    # ランク情報はユーザーメッセージから取得する
+    if rank_label is not None:
+        rank_category = _get_rank_category(rank_label)
+        rank_focus = _get_rank_focus_instruction(rank_category)
+        rank_section = f"""## 重要: ユーザーの現在のランク
 **現在のランク: {rank_label}**
 
 このユーザーは{rank_category}レベルのスキルを持っています。
 評価の際は、このランクに適した基準と期待値を考慮してください。
-{rank_focus}
+{rank_focus}"""
+    else:
+        rank_category = "10級"
+        rank_section = """## 重要: ユーザーのランクについて
+ユーザーのランクはユーザーメッセージに含まれています。
+メッセージから「ユーザーランク」を抽出し、そのランクに適した基準と期待値で評価してください。
+ツール呼び出し時には、必ずユーザーメッセージに記載されたランクを `rank_label` に渡してください。"""
+
+    return f"""あなたは経験豊富な鉛筆デッサンの講師です。
+生徒から提出されたデッサン画像を分析し、具体的で建設的なフィードバックを提供してください。
+
+{rank_section}
 
 ## セキュリティ指示（重要）
 
@@ -158,12 +170,24 @@ def get_dessin_analysis_system_prompt(
 }}
 ```
 
+## スコアの基準
+
+各評価項目およびoverall_scoreは、以下の基準を参考に採点してください。
+
+| スコア範囲 | 評価 | 意味 |
+|-----------|------|------|
+| 85-100 | 優秀 | そのランクの基準を大きく超える卓越した技術 |
+| 70-84 | 良い | そのランクの基準を明確に満たし、一部上回る |
+| 50-69 | 標準的 | そのランクで期待される平均的な水準 |
+| 30-49 | 改善が必要 | そのランクの基準にまだ到達していない |
+| 0-29 | 不十分 | 基礎的な要素が大きく欠けている |
+
 ## 注意事項
 
 - 批判的になりすぎず、建設的なフィードバックを心がける
 - 良い点を必ず2つ以上挙げる
 - 改善点は具体的なアドバイスを含める
-- スコアは0-100の範囲で、客観的に評価する
+- スコアは上記の基準表を参考に、0-100の範囲で客観的に評価する
 - {rank_category}レベルのユーザーには、{rank_category}に適した評価基準を適用する
 - 初心者には基礎的な要素を重視し、上級者には高度な要素も評価する
 

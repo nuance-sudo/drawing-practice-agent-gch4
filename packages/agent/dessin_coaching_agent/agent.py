@@ -35,7 +35,7 @@ root_agent = Agent(
     name="dessin_coaching_agent",
     model=gemini_model,
     description="鉛筆デッサンを分析し、改善フィードバックを提供するコーチングエージェント",
-    instruction=get_dessin_analysis_system_prompt(),
+    instruction=get_dessin_analysis_system_prompt(rank_label=None),
     tools=[
         identify_motif,
         analyze_dessin_image,
