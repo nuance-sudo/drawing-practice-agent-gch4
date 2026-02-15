@@ -467,76 +467,17 @@ def _calculate_growth_from_memories(
     analysis: DessinAnalysis,
     past_memories: list[MemoryEntry],
 ) -> DessinAnalysis:
-    """過去メモリを使って成長スコアを補正
+    """初回提出時の成長スコアを初期化する。
 
-    Args:
-        analysis: LLMが生成した分析結果
-        past_memories: 過去のメモリリスト
-
-    Returns:
-        成長スコアを補正した分析結果
+    2回目以降の成長スコアはLLM生成値をそのまま使用する。
     """
     if not past_memories:
-        # 初回提出：スコアをNullに、サマリーを初回用メッセージに
         analysis.growth.score = None
         analysis.growth.comparison_summary = "初回提出のため比較データなし"
         analysis.growth.improved_areas = []
         analysis.growth.consistent_strengths = []
         analysis.growth.ongoing_challenges = []
-        logger.info("成長スコア補正: 初回提出")
         return analysis
 
-    # 過去スコアを取得
-    past_scores: list[float] = []
-    metadata_keys: set[str] = set()
-    for mem in past_memories:
-        metadata = mem.get("metadata", {})
-        if isinstance(metadata, dict):
-            metadata_keys.update(metadata.keys())
-            score = metadata.get("overall_score")
-            if isinstance(score, (int, float)):
-                past_scores.append(float(score))
-
-    if not past_scores:
-        for mem in past_memories:
-            fact = mem.get("fact")
-            if isinstance(fact, str):
-                score = _extract_overall_score_from_fact(fact)
-                if isinstance(score, (int, float)):
-                    past_scores.append(float(score))
-
-    logger.info(
-        "成長スコア補正: past_memories=%d, past_scores=%d, metadata_keys=%s",
-        len(past_memories),
-        len(past_scores),
-        sorted(metadata_keys),
-    )
-
-    if not past_scores:
-        # メタデータにスコアがない場合も初回扱い
-        analysis.growth.score = None
-        analysis.growth.comparison_summary = "過去データにスコア情報がありません"
-        return analysis
-
-    # 成長スコア計算: 過去平均との差分をベースに
-    avg_past_score = sum(past_scores) / len(past_scores)
-    score_diff = analysis.overall_score - avg_past_score
-
-    # 成長スコア = 70 + 差分（0-100にクランプ）
-    # 70点 = 現状維持、70以上 = 成長、70未満 = 後退
-    growth_score = max(0.0, min(100.0, 70.0 + score_diff))
-
-    analysis.growth.score = growth_score
-    analysis.growth.comparison_summary = (
-        f"過去{len(past_scores)}件の平均({avg_past_score:.1f}点)と比較して"
-        f"{'成長' if score_diff > 0 else '維持' if score_diff == 0 else '要復習'}しています"
-    )
-
-    logger.info(
-        "成長スコア補正: past_avg=%.1f, current=%.1f, growth=%.1f",
-        avg_past_score,
-        analysis.overall_score,
-        growth_score,
-    )
-
+    # 過去メモリがある場合はLLM生成の成長スコアをそのまま使用
     return analysis

@@ -150,21 +150,9 @@ def _build_memory_fact(analysis: DessinAnalysis) -> str:
     improvements_text = ", ".join(analysis.improvements[:3]) if analysis.improvements else "なし"
     tags_text = ", ".join(analysis.tags) if analysis.tags else "なし"
 
-    # 成長情報
-    growth_score_text = (
-        f"{analysis.growth.score}/100"
-        if analysis.growth.score is not None
-        else "初回提出"
-    )
     growth_summary = analysis.growth.comparison_summary
 
     return f"""デッサン分析結果:
-- 総合スコア: {analysis.overall_score}/100
-- プロポーション: {analysis.proportion.score}/100
-- 陰影: {analysis.tone.score}/100
-- 質感: {analysis.texture.score}/100
-- 線の質: {analysis.line_quality.score}/100
-- 成長スコア: {growth_score_text}
 - 成長サマリー: {growth_summary}
 - 強み: {strengths_text}
 - 改善点: {improvements_text}
