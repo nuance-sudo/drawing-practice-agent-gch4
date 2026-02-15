@@ -27,6 +27,9 @@ class AnnotationService:
     def __init__(self) -> None:
         self.function_url = settings.annotation_function_url
 
+    # リトライ設定
+    MAX_RETRIES = 3
+
     async def generate_annotated_image(
         self,
         task_id: str,
@@ -37,13 +40,16 @@ class AnnotationService:
     ) -> str | None:
         """アノテーション画像生成リクエストを送信し、結果を待って返す
 
+        最大3回リトライ（指数バックオフ: 2秒, 4秒, 8秒）を行い、
+        全て失敗した場合はNoneを返す。
+
         Args:
             task_id: タスクID
             original_image_url: 元画像のURL
             analysis: デッサン分析結果
             user_rank: ユーザーランク情報
             motif_tags: モチーフタグ
-            
+
         Returns:
             アノテーション画像のURL（生成失敗時はNone）
         """
@@ -51,16 +57,53 @@ class AnnotationService:
             logger.warning("annotation_generation_disabled_no_url")
             return None
 
-        try:
-            payload = {
-                "task_id": task_id,
-                "user_id": user_rank.user_id,
-                "original_image_url": original_image_url,
-                "analysis": analysis.model_dump(),
-                "current_rank_label": user_rank.current_rank.label,
-                "motif_tags": motif_tags,
-            }
+        payload = {
+            "task_id": task_id,
+            "user_id": user_rank.user_id,
+            "original_image_url": original_image_url,
+            "analysis": analysis.model_dump(),
+            "current_rank_label": user_rank.current_rank.label,
+            "motif_tags": motif_tags,
+        }
 
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            result = await self._call_annotation_function(task_id, payload)
+            if result is not None:
+                return result
+
+            if attempt < self.MAX_RETRIES:
+                wait_time = 2 ** attempt
+                logger.warning(
+                    "annotation_generation_retry",
+                    task_id=task_id,
+                    attempt=attempt,
+                    max_retries=self.MAX_RETRIES,
+                    wait_seconds=wait_time,
+                )
+                await asyncio.sleep(wait_time)
+
+        logger.error(
+            "annotation_generation_all_retries_failed",
+            task_id=task_id,
+            max_retries=self.MAX_RETRIES,
+        )
+        return None
+
+    async def _call_annotation_function(
+        self,
+        task_id: str,
+        payload: dict[str, object],
+    ) -> str | None:
+        """Cloud Functionを呼び出してアノテーション画像を生成（1回の試行）
+
+        Args:
+            task_id: タスクID
+            payload: リクエストペイロード
+
+        Returns:
+            アノテーション画像のURL（失敗時はNone）
+        """
+        try:
             # Cloud Functions Gen2の場合、.run.appのURLをtarget_audienceとして使用
             target_audience = self._convert_to_run_app_url(self.function_url)
             auth_req = google.auth.transport.requests.Request()
@@ -117,7 +160,6 @@ class AnnotationService:
                 error=str(e),
                 error_type=type(e).__name__,
             )
-            # エラーが発生しても処理を続行できるようにNoneを返す
             return None
 
     def _convert_to_run_app_url(self, url: str) -> str:

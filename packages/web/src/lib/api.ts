@@ -61,5 +61,11 @@ export const api = {
             }),
         });
     },
+
+    retryImages: async (taskId: string): Promise<ReviewTask> => {
+        return await fetchWithAuth(`/reviews/${taskId}/retry-images`, {
+            method: 'POST',
+        });
+    },
 };
 

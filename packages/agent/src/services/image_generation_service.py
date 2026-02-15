@@ -25,6 +25,9 @@ class ImageGenerationError(Exception):
 class ImageGenerationService:
     """お手本画像生成サービス（Cloud Function クライアント）"""
 
+    # リトライ設定
+    MAX_RETRIES = 3
+
     def __init__(self) -> None:
         """初期化"""
         self.function_url = settings.image_generation_function_url
@@ -40,8 +43,8 @@ class ImageGenerationService:
     ) -> None:
         """お手本画像生成リクエストを送信する（非同期）
 
-        Cloud Functionにお手本画像生成を依頼し、即座にリターンする。
-        実際の画像生成と完了通知はFunction側で行われる。
+        最大3回リトライ（指数バックオフ: 2秒, 4秒, 8秒）を行い、
+        全て失敗した場合はImageGenerationErrorを送出する。
 
         Args:
             task_id: タスクID
@@ -52,33 +55,76 @@ class ImageGenerationService:
             annotated_image_url: アノテーション画像のURL（オプション）
 
         Raises:
-            ImageGenerationError: リクエスト送信に失敗した場合
+            ImageGenerationError: 全リトライ失敗時
         """
         if not self.function_url:
             logger.warning("image_generation_disabled_no_url")
             return
 
+        # リクエストペイロード作成
+        payload: dict[str, object] = {
+            "task_id": task_id,
+            "user_id": user_id,
+            "original_image_url": original_image_url,
+            "analysis": analysis.model_dump(),
+            "motif_tags": motif_tags,
+        }
+
+        # アノテーション画像URLがあれば追加
+        if annotated_image_url:
+            payload["annotated_image_url"] = annotated_image_url
+
+        last_error: ImageGenerationError | None = None
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            try:
+                await self._call_generation_function(task_id, user_id, payload)
+                return  # 成功
+            except ImageGenerationError as e:
+                last_error = e
+                if attempt < self.MAX_RETRIES:
+                    wait_time = 2 ** attempt
+                    logger.warning(
+                        "image_generation_retry",
+                        task_id=task_id,
+                        attempt=attempt,
+                        max_retries=self.MAX_RETRIES,
+                        wait_seconds=wait_time,
+                        error=str(e),
+                    )
+                    await asyncio.sleep(wait_time)
+
+        logger.error(
+            "image_generation_all_retries_failed",
+            task_id=task_id,
+            max_retries=self.MAX_RETRIES,
+        )
+        raise last_error or ImageGenerationError(
+            f"Failed after {self.MAX_RETRIES} attempts"
+        )
+
+    async def _call_generation_function(
+        self,
+        task_id: str,
+        user_id: str,
+        payload: dict[str, object],
+    ) -> None:
+        """Cloud Functionを呼び出してお手本画像生成を依頼（1回の試行）
+
+        Args:
+            task_id: タスクID
+            user_id: ユーザーID
+            payload: リクエストペイロード
+
+        Raises:
+            ImageGenerationError: リクエスト送信に失敗した場合
+        """
         try:
             logger.info(
                 "image_generation_request_started",
                 task_id=task_id,
                 user_id=user_id,
                 function_url=self.function_url,
-                has_annotated_image=bool(annotated_image_url),
             )
-
-            # リクエストペイロード作成（改善点フォーカス、ランク情報なし）
-            payload: dict = {
-                "task_id": task_id,
-                "user_id": user_id,
-                "original_image_url": original_image_url,
-                "analysis": analysis.model_dump(),
-                "motif_tags": motif_tags,
-            }
-
-            # アノテーション画像URLがあれば追加
-            if annotated_image_url:
-                payload["annotated_image_url"] = annotated_image_url
 
             # IDトークン取得
             # Cloud Functions Gen2の場合、.run.appのURLをtarget_audienceとして使用
@@ -115,6 +161,8 @@ class ImageGenerationService:
                     status=response.status
                 )
 
+        except ImageGenerationError:
+            raise
         except Exception as e:
             logger.error(
                 "image_generation_request_failed",
@@ -122,9 +170,6 @@ class ImageGenerationService:
                 error=str(e),
                 error_type=type(e).__name__
             )
-            # リトライはFunction側や呼び出し元の方針によるが、ここではエラーを送出せずログのみとする場合も考慮
-            # しかし呼び出し元でステータス管理するなら例外を投げた方がよいか？
-            # reviews.pyでは例外キャッチしているので投げてOK
             raise ImageGenerationError(f"Failed to request generation: {e}")
 
     def _convert_to_run_app_url(self, url: str) -> str:

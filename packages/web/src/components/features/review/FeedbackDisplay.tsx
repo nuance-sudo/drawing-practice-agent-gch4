@@ -1,7 +1,9 @@
+import { useState, useCallback } from 'react';
 import { Star, TrendingUp, Equal, AlertTriangle, Sprout } from 'lucide-react';
 import type { ReviewTask, Feedback, CategoryFeedback, GrowthFeedback } from '@/types/task';
 import { clsx } from 'clsx';
 import { ExampleImageDisplay } from './ExampleImageDisplay';
+import { api } from '@/lib/api';
 
 type FeedbackDisplayProps = {
     task: ReviewTask;
@@ -14,6 +16,20 @@ export const FeedbackDisplay = ({ task, feedback, rankAtReview }: FeedbackDispla
     const generationFailed = task.status === 'completed' && !task.exampleImageUrl;
     const isAnnotating = task.status === 'processing' && !task.annotatedImageUrl;
     const annotationFailed = task.status === 'completed' && !task.annotatedImageUrl;
+
+    const [isRetrying, setIsRetrying] = useState(false);
+
+    const handleRetryImages = useCallback(async () => {
+        setIsRetrying(true);
+        try {
+            await api.retryImages(task.taskId);
+            // Firestore onSnapshotリスナーがリアルタイムでUIを自動更新
+        } catch (error) {
+            console.error('画像生成リトライに失敗しました:', error);
+        } finally {
+            setIsRetrying(false);
+        }
+    }, [task.taskId]);
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -49,6 +65,8 @@ export const FeedbackDisplay = ({ task, feedback, rankAtReview }: FeedbackDispla
                     generationFailed={generationFailed}
                     isAnnotating={isAnnotating}
                     annotationFailed={annotationFailed}
+                    onRetryImages={handleRetryImages}
+                    isRetrying={isRetrying}
                 />
             </div>
 
